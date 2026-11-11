@@ -1,0 +1,8 @@
+{
+  "name": "Remix Remix Remix Remix Remix Remix Remix Remix Remix Remix Remix Remix Remix Remix Production-Ready Walmart Scraper Dashboard",
+  "description": "Production-grade, location-specific, multi-location, Azure-ready Walmart scraper dashboard showcasing real-time metrics, deal parsing, data quality checks, and architectural topology.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

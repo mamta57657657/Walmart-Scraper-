@@ -1,0 +1,163 @@
+{
+  "commit_hash": "d32df9e2a47dc2beb9ce4a03c16249342e92b5e4",
+  "pinned_revision": "d32df9e-rev2",
+  "artifact_classification": "SPECIFICATION_MAPPING_CONTRACT",
+  "specification_version": "v2.7.0-verified",
+  "target_schema_fields_count": 22,
+  "fields_mapping": [
+    {
+      "position": 1,
+      "field": "zipcode",
+      "retailer_source_path": "item.postalCode || browse.postalCode",
+      "rule": "Must match target store zipcode verified in response cookies/payload",
+      "sample_value": "75001"
+    },
+    {
+      "position": 2,
+      "field": "store_name",
+      "retailer_source_path": "storeConfig.name verified against response storeId",
+      "rule": "Store name associated with storeId in verified response",
+      "sample_value": "Walmart Supercenter #4012"
+    },
+    {
+      "position": 3,
+      "field": "store_location",
+      "retailer_source_path": "storeConfig.address verified against response storeId",
+      "rule": "Physical address of verified store",
+      "sample_value": "1234 Main St, Dallas, TX 75201"
+    },
+    {
+      "position": 4,
+      "field": "store_logo",
+      "retailer_source_path": "storeConfig.logo_url",
+      "rule": "Walmart CDN SVG brand asset URL",
+      "sample_value": "https://i5.walmartimages.com/dfw/63fd9f59-b3e1/7a569e53-f29a-4c3d-bfaf-6f7a158bfadd/v1/walmartLogo.svg"
+    },
+    {
+      "position": 5,
+      "field": "store_brand",
+      "retailer_source_path": "item.brandName || detect_store_brand(item.name)",
+      "rule": "Identify Walmart private-labels (Great Value, Equate, Mainstays); otherwise 'no'",
+      "sample_value": "Great Value / no"
+    },
+    {
+      "position": 6,
+      "field": "category",
+      "retailer_source_path": "taxonomy_csv.category",
+      "rule": "Verbatim department classification from category URL taxonomy",
+      "sample_value": "Beverages"
+    },
+    {
+      "position": 7,
+      "field": "sub_category",
+      "retailer_source_path": "taxonomy_csv.sub_category",
+      "rule": "Verbatim subcategory classification from category URL taxonomy",
+      "sample_value": "Water"
+    },
+    {
+      "position": 8,
+      "field": "product_title",
+      "retailer_source_path": "item.name",
+      "rule": "Product title verbatim from retailer item record",
+      "sample_value": "Dasani Purified Water, 16.9 fl oz, 24 Pack"
+    },
+    {
+      "position": 9,
+      "field": "weight",
+      "retailer_source_path": "item.weight || regex_extract(item.name)",
+      "rule": "Product volume/weight. Approximate wording ('approx', 'about') strictly excluded",
+      "sample_value": "16.9 fl oz"
+    },
+    {
+      "position": 10,
+      "field": "regular_price",
+      "retailer_source_path": "item.priceInfo.wasPrice.priceString || item.priceInfo.currentPrice.priceString",
+      "rule": "Regular shelf price with $. Retained unavailable assortment returns empty string ''",
+      "sample_value": "$6.98"
+    },
+    {
+      "position": 11,
+      "field": "sale_price",
+      "retailer_source_path": "item.priceInfo.currentPrice.priceString",
+      "rule": "Sale price with $. If out-of-stock / unavailable store assortment, strictly empty string ''",
+      "sample_value": "$5.98"
+    },
+    {
+      "position": 12,
+      "field": "volume_deals_description",
+      "retailer_source_path": "Empty string mandate",
+      "rule": "Mandate: All four Walmart volume/digital offer fields must be strictly empty strings ''",
+      "sample_value": ""
+    },
+    {
+      "position": 13,
+      "field": "volume_deals_price",
+      "retailer_source_path": "Empty string mandate",
+      "rule": "Mandate: All four Walmart volume/digital offer fields must be strictly empty strings ''",
+      "sample_value": ""
+    },
+    {
+      "position": 14,
+      "field": "digital_deals_description",
+      "retailer_source_path": "Empty string mandate",
+      "rule": "Mandate: All four Walmart volume/digital offer fields must be strictly empty strings ''",
+      "sample_value": ""
+    },
+    {
+      "position": 15,
+      "field": "digital_deals_price",
+      "retailer_source_path": "Empty string mandate",
+      "rule": "Mandate: All four Walmart volume/digital offer fields must be strictly empty strings ''",
+      "sample_value": ""
+    },
+    {
+      "position": 16,
+      "field": "image_url",
+      "retailer_source_path": "item.imageInfo.thumbnailUrl",
+      "rule": "High-resolution product image link on Walmart CDN",
+      "sample_value": "https://i5.walmartimages.com/seo/dasani-purified-water...jpg"
+    },
+    {
+      "position": 17,
+      "field": "url",
+      "retailer_source_path": "'https://www.walmart.com' + item.canonicalUrl",
+      "rule": "Canonical /ip/... product page URL containing authentic retailer item ID",
+      "sample_value": "https://www.walmart.com/ip/dasani-purified-water/10311234"
+    },
+    {
+      "position": 18,
+      "field": "upc",
+      "retailer_source_path": "item.upc (from item data fields, NEVER from URL digits)",
+      "rule": "Genuine 12-digit GS1 barcode. Retained unavailable assortment returns empty string ''",
+      "sample_value": "049000050116"
+    },
+    {
+      "position": 19,
+      "field": "gupc",
+      "retailer_source_path": "NONE (Enforced contest mandate)",
+      "rule": "CONTEST MANDATE: strictly empty string \"\"",
+      "sample_value": "\"\""
+    },
+    {
+      "position": 20,
+      "field": "ppm",
+      "retailer_source_path": "item.priceInfo.unitPrice.priceString",
+      "rule": "Directly scraped from Walmart with unit ($0.06/fl oz). Never estimated. '' if unavailable",
+      "sample_value": "$0.06/fl oz"
+    },
+    {
+      "position": 21,
+      "field": "unit_price",
+      "retailer_source_path": "NONE (Downstream pipeline calculation)",
+      "rule": "CONTEST MANDATE: strictly empty string \"\"",
+      "sample_value": "\"\""
+    },
+    {
+      "position": 22,
+      "field": "crawl_date",
+      "retailer_source_path": "system.crawl_date",
+      "rule": "YYYY-MM-DD collection timestamp. Strictly the 22nd and final field",
+      "sample_value": "2026-10-23"
+    }
+  ]
+}

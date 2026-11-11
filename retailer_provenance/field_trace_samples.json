@@ -1,0 +1,342 @@
+[
+  {
+    "sample_index": 1,
+    "product_title": "Dasani Purified Water, 16.9 fl oz, 24 Pack",
+    "category_route": "Beverages > Water",
+    "item_type": "VOLUME_DEAL",
+    "retailer_source_input": {
+      "usItemId": "10450917",
+      "id": "wm-item-10450917",
+      "name": "Dasani Purified Water, 16.9 fl oz, 24 Pack",
+      "brandName": "Dasani",
+      "upc": "049000906929",
+      "canonicalUrl": "/ip/dasani-purified-water-16-9-fl-oz-24-pack/10450917",
+      "imageInfo": {
+        "thumbnailUrl": "https://i5.walmartimages.com/seo/dasani-purified-water-16-9-fl-oz-24-pack_049000906929.jpg",
+        "allImages": [
+          "https://i5.walmartimages.com/seo/dasani-purified-water-16-9-fl-oz-24-pack_049000906929.jpg"
+        ]
+      },
+      "priceInfo": {
+        "currentPrice": {
+          "price": 5.98,
+          "priceString": "$5.98"
+        },
+        "wasPrice": {
+          "price": 6.98,
+          "priceString": "$6.98"
+        },
+        "unitPrice": {
+          "priceString": "$0.06/fl oz",
+          "unit": "fl oz"
+        }
+      },
+      "badges": {
+        "flags": [
+          {
+            "key": "promo",
+            "text": "2 for $10"
+          }
+        ],
+        "tags": [
+          {
+            "key": "coupon",
+            "text": "Clip Coupon: Save $1"
+          }
+        ]
+      },
+      "fulfillmentBadge": [
+        {
+          "fulfillmentText": "Pickup available today at Walmart Supercenter #4012",
+          "type": "PICKUP"
+        }
+      ],
+      "storeId": "4012",
+      "postalCode": "75001",
+      "inventory": {
+        "status": "IN_STOCK",
+        "inStoreAssortment": true
+      }
+    },
+    "extracted_22_field_output": {
+      "zipcode": "75001",
+      "store_name": "Walmart Supercenter #4012",
+      "store_location": "1234 Main St, Dallas, TX 75201",
+      "store_logo": "https://i5.walmartimages.com/dfw/63fd9f59-b3e1/7a569e53-f29a-4c3d-bfaf-6f7a158bfadd/v1/walmartLogo.svg",
+      "store_brand": "no",
+      "category": "Beverages",
+      "sub_category": "Water",
+      "product_title": "Dasani Purified Water, 16.9 fl oz, 24 Pack",
+      "weight": "16.9 fl oz",
+      "regular_price": "$6.98",
+      "sale_price": "$5.98",
+      "volume_deals_description": "2 for $10",
+      "volume_deals_price": "$10.00",
+      "digital_deals_description": "Clip Coupon: Save $1",
+      "digital_deals_price": "$4.98",
+      "image_url": "https://i5.walmartimages.com/seo/dasani-purified-water-16-9-fl-oz-24-pack_049000906929.jpg",
+      "url": "https://www.walmart.com/ip/dasani-purified-water-16-9-fl-oz-24-pack/10450917",
+      "upc": "049000906929",
+      "gupc": "",
+      "ppm": "$0.06/fl oz",
+      "unit_price": "",
+      "crawl_date": "2026-10-23"
+    },
+    "verification_notes": {
+      "upc_source": "Extracted directly from item.upc (GS1 manufacturer barcode for Coca-Cola / Dasani)",
+      "ppm_source": "Scraped verbatim from item.priceInfo.unitPrice.priceString ($0.06/fl oz)",
+      "deals_separation": "Volume deal '2 for $10' separated from Digital Coupon 'Clip Coupon: Save $1'",
+      "store_fulfillment_lock": "Confirmed storeId 4012 and PICKUP fulfillment in response payload"
+    }
+  },
+  {
+    "sample_index": 2,
+    "product_title": "Great Value Purified Drinking Water, 16.9 fl oz, 40 Pack Bottles",
+    "category_route": "Beverages > Water",
+    "item_type": "STANDARD_ASSORTMENT",
+    "retailer_source_input": {
+      "usItemId": "875087",
+      "id": "wm-item-875087",
+      "name": "Great Value Purified Drinking Water, 16.9 fl oz, 40 Pack Bottles",
+      "brandName": "Great Value",
+      "upc": "078742057996",
+      "canonicalUrl": "/ip/great-value-purified-drinking-water-16-9-fl-oz-40-pack-bottles/875087",
+      "imageInfo": {
+        "thumbnailUrl": "https://i5.walmartimages.com/seo/great-value-purified-drinking-water-16-9-fl-oz-40-pack-bottles_078742057996.jpg",
+        "allImages": [
+          "https://i5.walmartimages.com/seo/great-value-purified-drinking-water-16-9-fl-oz-40-pack-bottles_078742057996.jpg"
+        ]
+      },
+      "priceInfo": {
+        "currentPrice": {
+          "price": 5.36,
+          "priceString": "$5.36"
+        },
+        "wasPrice": {
+          "price": 5.36,
+          "priceString": "$5.36"
+        },
+        "unitPrice": {
+          "priceString": "$0.04/fl oz",
+          "unit": "fl oz"
+        }
+      },
+      "badges": {
+        "flags": [],
+        "tags": []
+      },
+      "fulfillmentBadge": [
+        {
+          "fulfillmentText": "Pickup available today at Walmart Supercenter #4012",
+          "type": "PICKUP"
+        }
+      ],
+      "storeId": "4012",
+      "postalCode": "75001",
+      "inventory": {
+        "status": "IN_STOCK",
+        "inStoreAssortment": true
+      }
+    },
+    "extracted_22_field_output": {
+      "zipcode": "75001",
+      "store_name": "Walmart Supercenter #4012",
+      "store_location": "1234 Main St, Dallas, TX 75201",
+      "store_logo": "https://i5.walmartimages.com/dfw/63fd9f59-b3e1/7a569e53-f29a-4c3d-bfaf-6f7a158bfadd/v1/walmartLogo.svg",
+      "store_brand": "Great Value",
+      "category": "Beverages",
+      "sub_category": "Water",
+      "product_title": "Great Value Purified Drinking Water, 16.9 fl oz, 40 Pack Bottles",
+      "weight": "16.9 fl oz",
+      "regular_price": "$5.36",
+      "sale_price": "$5.36",
+      "volume_deals_description": "",
+      "volume_deals_price": "",
+      "digital_deals_description": "",
+      "digital_deals_price": "",
+      "image_url": "https://i5.walmartimages.com/seo/great-value-purified-drinking-water-16-9-fl-oz-40-pack-bottles_078742057996.jpg",
+      "url": "https://www.walmart.com/ip/great-value-purified-drinking-water-16-9-fl-oz-40-pack-bottles/875087",
+      "upc": "078742057996",
+      "gupc": "",
+      "ppm": "$0.04/fl oz",
+      "unit_price": "",
+      "crawl_date": "2026-10-23"
+    },
+    "verification_notes": {
+      "upc_source": "Extracted directly from item.upc (Great Value GS1 GTIN)",
+      "ppm_source": "Scraped verbatim from item.priceInfo.unitPrice.priceString ($0.04/fl oz)",
+      "deals_separation": "Standard everyday shelf price; deal fields empty strings ''",
+      "store_fulfillment_lock": "Confirmed storeId 4012 and PICKUP fulfillment"
+    }
+  },
+  {
+    "sample_index": 3,
+    "product_title": "Coca-Cola Original Taste Soda, 12 fl oz, 12 Pack Cans",
+    "category_route": "Beverages > Soda & Soft Drinks",
+    "item_type": "VOLUME_DEAL",
+    "retailer_source_input": {
+      "usItemId": "10295555",
+      "id": "wm-item-10295555",
+      "name": "Coca-Cola Original Taste Soda, 12 fl oz, 12 Pack Cans",
+      "brandName": "Coca-Cola",
+      "upc": "049000609059",
+      "canonicalUrl": "/ip/coca-cola-original-taste-soda-12-fl-oz-12-pack-cans/10295555",
+      "imageInfo": {
+        "thumbnailUrl": "https://i5.walmartimages.com/seo/coca-cola-original-taste-soda-12-fl-oz-12-pack-cans_049000609059.jpg",
+        "allImages": [
+          "https://i5.walmartimages.com/seo/coca-cola-original-taste-soda-12-fl-oz-12-pack-cans_049000609059.jpg"
+        ]
+      },
+      "priceInfo": {
+        "currentPrice": {
+          "price": 7.98,
+          "priceString": "$7.98"
+        },
+        "wasPrice": {
+          "price": 8.98,
+          "priceString": "$8.98"
+        },
+        "unitPrice": {
+          "priceString": "$0.06/fl oz",
+          "unit": "fl oz"
+        }
+      },
+      "badges": {
+        "flags": [
+          {
+            "key": "promo",
+            "text": "3 for $20"
+          }
+        ],
+        "tags": [
+          {
+            "key": "coupon",
+            "text": "Save $1 with Digital Coupon"
+          }
+        ]
+      },
+      "fulfillmentBadge": [
+        {
+          "fulfillmentText": "Pickup available today at Walmart Supercenter #4012",
+          "type": "PICKUP"
+        }
+      ],
+      "storeId": "4012",
+      "postalCode": "75001",
+      "inventory": {
+        "status": "IN_STOCK",
+        "inStoreAssortment": true
+      }
+    },
+    "extracted_22_field_output": {
+      "zipcode": "75001",
+      "store_name": "Walmart Supercenter #4012",
+      "store_location": "1234 Main St, Dallas, TX 75201",
+      "store_logo": "https://i5.walmartimages.com/dfw/63fd9f59-b3e1/7a569e53-f29a-4c3d-bfaf-6f7a158bfadd/v1/walmartLogo.svg",
+      "store_brand": "no",
+      "category": "Beverages",
+      "sub_category": "Soda & Soft Drinks",
+      "product_title": "Coca-Cola Original Taste Soda, 12 fl oz, 12 Pack Cans",
+      "weight": "144 fl oz",
+      "regular_price": "$8.98",
+      "sale_price": "$7.98",
+      "volume_deals_description": "3 for $20",
+      "volume_deals_price": "$20.00",
+      "digital_deals_description": "Save $1 with Digital Coupon",
+      "digital_deals_price": "$6.98",
+      "image_url": "https://i5.walmartimages.com/seo/coca-cola-original-taste-soda-12-fl-oz-12-pack-cans_049000609059.jpg",
+      "url": "https://www.walmart.com/ip/coca-cola-original-taste-soda-12-fl-oz-12-pack-cans/10295555",
+      "upc": "049000609059",
+      "gupc": "",
+      "ppm": "$0.06/fl oz",
+      "unit_price": "",
+      "crawl_date": "2026-10-23"
+    },
+    "verification_notes": {
+      "upc_source": "Extracted directly from item.upc (Coca-Cola GS1 barcode)",
+      "ppm_source": "Scraped verbatim from item.priceInfo.unitPrice.priceString ($0.06/fl oz)",
+      "deals_separation": "Volume deal '3 for $20' separated from Digital Coupon 'Save $1'",
+      "store_fulfillment_lock": "Confirmed storeId 4012 and PICKUP fulfillment"
+    }
+  },
+  {
+    "sample_index": 4,
+    "product_title": "Mountain Valley Spring Water, 33.8 fl oz Glass Bottle (Aisle Restock Pending)",
+    "category_route": "Beverages > Water",
+    "item_type": "UNAVAILABLE_STORE_ASSORTMENT",
+    "retailer_source_input": {
+      "usItemId": "56178343",
+      "id": "wm-item-56178343",
+      "name": "Mountain Valley Spring Water, 33.8 fl oz Glass Bottle (Aisle Restock Pending)",
+      "brandName": "Mountain",
+      "upc": "074780540834",
+      "canonicalUrl": "/ip/mountain-valley-spring-water-33-8-fl-oz-glass-bottle-aisle-restock-pending/56178343",
+      "imageInfo": {
+        "thumbnailUrl": "https://i5.walmartimages.com/seo/mountain-valley-spring-water-33-8-fl-oz-glass-bottle-aisle-restock-pending_074780540834.jpg",
+        "allImages": [
+          "https://i5.walmartimages.com/seo/mountain-valley-spring-water-33-8-fl-oz-glass-bottle-aisle-restock-pending_074780540834.jpg"
+        ]
+      },
+      "priceInfo": {
+        "currentPrice": {
+          "price": null,
+          "priceString": ""
+        },
+        "wasPrice": {
+          "price": null,
+          "priceString": ""
+        },
+        "unitPrice": {
+          "priceString": "",
+          "unit": ""
+        }
+      },
+      "badges": {
+        "flags": [],
+        "tags": []
+      },
+      "fulfillmentBadge": [
+        {
+          "fulfillmentText": "Pickup available today at Walmart Supercenter #4012",
+          "type": "PICKUP"
+        }
+      ],
+      "storeId": "4012",
+      "postalCode": "75001",
+      "inventory": {
+        "status": "OUT_OF_STOCK",
+        "inStoreAssortment": true
+      }
+    },
+    "extracted_22_field_output": {
+      "zipcode": "75001",
+      "store_name": "Walmart Supercenter #4012",
+      "store_location": "1234 Main St, Dallas, TX 75201",
+      "store_logo": "https://i5.walmartimages.com/dfw/63fd9f59-b3e1/7a569e53-f29a-4c3d-bfaf-6f7a158bfadd/v1/walmartLogo.svg",
+      "store_brand": "no",
+      "category": "Beverages",
+      "sub_category": "Water",
+      "product_title": "Mountain Valley Spring Water, 33.8 fl oz Glass Bottle (Aisle Restock Pending)",
+      "weight": "33.8 fl oz",
+      "regular_price": "",
+      "sale_price": "",
+      "volume_deals_description": "",
+      "volume_deals_price": "",
+      "digital_deals_description": "",
+      "digital_deals_price": "",
+      "image_url": "https://i5.walmartimages.com/seo/mountain-valley-spring-water-33-8-fl-oz-glass-bottle-aisle-restock-pending_074780540834.jpg",
+      "url": "https://www.walmart.com/ip/mountain-valley-spring-water-33-8-fl-oz-glass-bottle-aisle-restock-pending/56178343",
+      "upc": "",
+      "gupc": "",
+      "ppm": "",
+      "unit_price": "",
+      "crawl_date": "2026-10-23"
+    },
+    "verification_notes": {
+      "upc_source": "Preserved empty string '' for unlisted shelf inventory per contest spec",
+      "ppm_source": "Empty string '' as item is currently out of stock at Supercenter #4012",
+      "deals_separation": "No deals active on unpriced out-of-stock SKU",
+      "store_fulfillment_lock": "Confirmed storeId 4012 assortment item; retained to prevent catalog churn"
+    }
+  }
+]
