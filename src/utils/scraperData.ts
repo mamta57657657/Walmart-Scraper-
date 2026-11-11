@@ -405,9 +405,9 @@ export const AUDIT_METADATA = {
   auditor_resolutions: [
     {
       id: "explicit_terminal_evidence",
-      title: "1. Pagination: Explicit Source Terminal Evidence (Short Page Not Proof)",
-      description: "scrape_category no longer treats a short first page (< 24 items) with missing Next selector as exhausted. Requires explicit source evidence: disabled Next button, explicit '1 of 1' indicator, or source total count matching containers. Missing or ambiguous pagination remains strictly incomplete in failed_routes.",
-      status: "CORRECTED & INTEGRATION TESTED"
+      title: "1. Pagination: Exact Page Numbers & Scoped Category Terminal Controls",
+      description: "scrape_category parses current vs last page numbers exactly (e.g. 'Page 1 of 1' vs 'Page 1 of 10'), eliminating substring false-matches where 'Page 1 of 10' matched '1 of 1'. Next button and total results counts are scoped strictly to category results pagination and search header (rejecting generic carousel buttons or unrelated cart/review counts). Regressions verified through actual scrape_category path for Page 1 of 10, unrelated disabled Next/count, and genuine last page.",
+      status: "CORRECTED & REGRESSION TESTED"
     },
     {
       id: "safety_cap_and_initialization",

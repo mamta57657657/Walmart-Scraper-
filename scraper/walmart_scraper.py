@@ -24,16 +24,33 @@ except ImportError:
     Page = Any  # type: ignore
     BrowserContext = Any  # type: ignore
 
-from config import StoreConfig, ScraperSettings, DEFAULT_STORES, get_settings
-from validation import (
-    sanitize_and_order_record,
-    is_approximate_weight,
-    detect_store_brand,
-    format_price,
-    validate_dataset,
-    REQUIRED_FIELD_ORDER
-)
-from checkpoint_manager import CheckpointManager, sanitize_captured_request
+# Ensure scraper directory is in Python path for standalone or package execution
+_scraper_dir = os.path.dirname(os.path.abspath(__file__))
+if _scraper_dir not in sys.path:
+    sys.path.insert(0, _scraper_dir)
+
+try:
+    from config import StoreConfig, ScraperSettings, DEFAULT_STORES, get_settings
+    from validation import (
+        sanitize_and_order_record,
+        is_approximate_weight,
+        detect_store_brand,
+        format_price,
+        validate_dataset,
+        REQUIRED_FIELD_ORDER
+    )
+    from checkpoint_manager import CheckpointManager, sanitize_captured_request
+except ImportError:
+    from scraper.config import StoreConfig, ScraperSettings, DEFAULT_STORES, get_settings
+    from scraper.validation import (
+        sanitize_and_order_record,
+        is_approximate_weight,
+        detect_store_brand,
+        format_price,
+        validate_dataset,
+        REQUIRED_FIELD_ORDER
+    )
+    from scraper.checkpoint_manager import CheckpointManager, sanitize_captured_request
 
 # Recognized affirmative fulfillment modes (reject substrings like NOT_PICKUP or PICKUP_UNAVAILABLE)
 RECOGNIZED_AFFIRMATIVE_PICKUP_MODES = {
@@ -85,63 +102,168 @@ def build_structured_category_url(base_url: str, page_number: int) -> str:
     new_query = urlencode(query_params, doseq=True)
     return urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, new_query, parsed.fragment))
 
-async def check_explicit_terminal_evidence(page: Any, containers_count: int) -> Tuple[bool, str]:
+async def check_explicit_terminal_evidence(page: Any, containers_count: int, current_page: int = 1) -> Tuple[bool, str]:
     """
     Checks for explicit source terminal or total results evidence confirming category exhaustion.
     A short page (< 24 items) alone is NOT proof of exhaustion.
     Explicit source indicators required:
-    1. Next button present and disabled (disabled attribute or aria-disabled="true")
-    2. Explicit 1-of-1 pagination indicator (e.g. '1 of 1' / 'Page 1 of 1')
+    1. Category pagination Next button present and disabled (scoped to pagination navigation,
+       rejecting generic/unrelated disabled buttons from carousels, shelves, or modals).
+    2. Explicit page indicator comparing current versus last page exactly (e.g. 'Page 1 of 1',
+       '1 of 1', 'Page 3 of 3'), rejecting substring false-positives like 'Page 1 of 10'.
     3. Explicit source total results count matching containers_count (e.g. '5 results' for 5 items)
+       strictly scoped to the category search/header area (rejecting unrelated cart counts or reviews).
     """
     if not page:
         return False, "No page object provided"
 
-    # 1. Check for Next button explicitly present and disabled
-    try:
-        next_btn = await page.query_selector(
-            '[aria-label="Next Page"], a[aria-label="next page"], [data-automation-id="pagination-next-page"], button:has-text("Next")'
-        )
-        if next_btn:
-            attr_dis = await next_btn.get_attribute("disabled")
-            aria_dis = await next_btn.get_attribute("aria-disabled")
-            if (attr_dis is not None) or (aria_dis == "true"):
-                return True, "Next button explicitly present and disabled"
-    except Exception as ex:
-        logger.debug(f"[TERMINAL EVIDENCE CHECK] Error querying next button: {ex}")
+    # 1. Scoped Category Pagination Next button check
+    # Locate category pagination navigation container first to avoid matching unrelated carousel/modal buttons
+    pagination_container = None
+    container_selectors = [
+        '[data-automation-id="pagination"]',
+        'nav[aria-label*="pagination" i]',
+        'nav[aria-label*="Pagination"]',
+        '[data-testid="pagination"]',
+        'nav.paginator',
+        'ul.paginator-list',
+        'div[data-testid="search-results"] nav',
+        'main nav[aria-label*="pagination" i]',
+        '#maincontent nav[aria-label*="pagination" i]'
+    ]
+    for sel in container_selectors:
+        try:
+            elem = await page.query_selector(sel)
+            if elem:
+                pagination_container = elem
+                break
+        except Exception as ex:
+            logger.debug(f"[TERMINAL EVIDENCE CHECK] Error querying pagination container {sel}: {ex}")
 
-    # 2. Check for explicit 1-of-1 pagination indicator
+    # Search for Next control strictly inside category pagination container
+    if pagination_container:
+        next_selectors = [
+            '[data-automation-id="pagination-next-page"]',
+            '[data-testid="pagination-next-page"]',
+            'a[aria-label*="Next Page" i]',
+            'button[aria-label*="Next Page" i]',
+            'a[aria-label*="next page" i]',
+            'button[aria-label*="next page" i]',
+            'a[aria-label="Next" i]',
+            'button[aria-label="Next" i]',
+            'li.paginator-btn-next a',
+            'li.paginator-btn-next button',
+            'button:has-text("Next")',
+            'a:has-text("Next")'
+        ]
+        for sel in next_selectors:
+            try:
+                next_btn = await pagination_container.query_selector(sel)
+                if next_btn:
+                    attr_dis = await next_btn.get_attribute("disabled")
+                    aria_dis = await next_btn.get_attribute("aria-disabled")
+                    cls_dis = await next_btn.get_attribute("class") or ""
+                    if (attr_dis is not None) or (aria_dis == "true") or ("disabled" in cls_dis.lower()):
+                        return True, "Category pagination Next button explicitly present and disabled"
+                    else:
+                        return False, "Category pagination Next button is present and enabled (route not exhausted)"
+            except Exception as ex:
+                logger.debug(f"[TERMINAL EVIDENCE CHECK] Error querying next button inside pagination container: {ex}")
+    else:
+        # Fallback only to dedicated pagination automation ID if container not wrapped in nav
+        try:
+            dedicated_next = await page.query_selector('[data-automation-id="pagination-next-page"], [data-testid="pagination-next-page"]')
+            if dedicated_next:
+                attr_dis = await dedicated_next.get_attribute("disabled")
+                aria_dis = await dedicated_next.get_attribute("aria-disabled")
+                cls_dis = await dedicated_next.get_attribute("class") or ""
+                if (attr_dis is not None) or (aria_dis == "true") or ("disabled" in cls_dis.lower()):
+                    return True, "Dedicated category pagination Next button explicitly present and disabled"
+                else:
+                    return False, "Dedicated category pagination Next button is present and enabled"
+        except Exception as ex:
+            logger.debug(f"[TERMINAL EVIDENCE CHECK] Error querying dedicated pagination Next button: {ex}")
+
+    # 2. Check for explicit exact pagination indicator: parse current vs last page numbers exactly
+    # Must NOT use substring checks like '1 of 1' in text, which incorrectly matches 'Page 1 of 10'!
     try:
-        pagination_elem = await page.query_selector(
-            '[data-automation-id="pagination"], nav[aria-label*="pagination"], nav[aria-label*="Pagination"], ul.paginator-list'
-        )
+        pagination_elem = pagination_container
+        if not pagination_elem:
+            pagination_elem = await page.query_selector(
+                '[data-automation-id="pagination"], nav[aria-label*="pagination" i], nav[aria-label*="Pagination"], [data-testid="pagination"], ul.paginator-list'
+            )
         if pagination_elem:
-            pag_text = (await pagination_elem.inner_text()).lower()
-            if "1 of 1" in pag_text or "page 1 of 1" in pag_text:
-                return True, f"Explicit pagination indicator '1 of 1' confirmed: '{pag_text.strip()}'"
+            pag_text = (await pagination_elem.inner_text()).strip()
+            # Match exact patterns: "Page 1 of 10", "1 of 10", "Page 1 of 1", "1 of 1", "Page 3 / 3"
+            m_pages = re.search(r'\b(?:page\s+)?(\d+)\s*(?:of|\/)\s*(\d+)\b', pag_text, re.IGNORECASE)
+            if m_pages:
+                parsed_curr = int(m_pages.group(1))
+                parsed_last = int(m_pages.group(2))
+                if parsed_curr == parsed_last and parsed_last >= 1:
+                    if current_page is None or parsed_curr == current_page or parsed_last == 1:
+                        return True, f"Explicit pagination terminal indicator confirmed (page {parsed_curr} of {parsed_last}): '{pag_text}'"
+                elif parsed_curr < parsed_last:
+                    # Explicit non-terminal evidence: current page is before last page (e.g. Page 1 of 10)
+                    return False, f"Explicit pagination confirms active non-terminal page ({parsed_curr} of {parsed_last}): '{pag_text}'"
     except Exception as ex:
         logger.debug(f"[TERMINAL EVIDENCE CHECK] Error querying pagination indicator: {ex}")
 
     # 3. Check for explicit source total results count matching container count
-    try:
-        body_text = await page.inner_text("body")
-    except Exception:
-        body_text = ""
+    # Scoped strictly to category search header or results summary (rejecting generic body, cart, or review counts)
+    category_count_selectors = [
+        '[data-automation-id="results-count"]',
+        '[data-testid="results-count"]',
+        '[data-automation-id="total-results"]',
+        '[data-testid="total-results"]',
+        '[data-automation-id="search-header"]',
+        '[data-testid="search-header"]',
+        '[data-automation-id="item-count"]',
+        '[data-testid="item-count"]',
+        '[data-automation-id="search-header-title"]',
+        'div[data-testid="search-results"] [data-automation-id="results-heading"]',
+        'main [data-automation-id="results-count"]',
+        '#maincontent [data-automation-id="results-count"]'
+    ]
 
-    if body_text and containers_count > 0:
-        # Match "showing 1-5 of 5 results" or "5 results" or "5 products"
-        m_showing = re.search(r'(?:showing\s+)?(?:\d+\s*-\s*)?(\d+)\s+of\s+(\d+)\s+(?:results|items|products)', body_text, re.IGNORECASE)
+    header_text = ""
+    for sel in category_count_selectors:
+        try:
+            elem = await page.query_selector(sel)
+            if elem:
+                txt = (await elem.inner_text()).strip()
+                if txt:
+                    header_text = txt
+                    break
+        except Exception:
+            continue
+
+    if not header_text:
+        try:
+            main_elem = await page.query_selector('main, #maincontent, [data-testid="search-results"], [role="main"]')
+            if main_elem:
+                header_child = await main_elem.query_selector(
+                    'header, [data-automation-id="results-heading"], h1, h2'
+                )
+                if header_child:
+                    header_text = (await header_child.inner_text()).strip()
+        except Exception:
+            pass
+
+    if header_text and containers_count > 0:
+        # Match category results summary patterns, e.g.:
+        # "Showing 1-5 of 5 results", "1-5 of 5 products", "5 results", "5 products"
+        m_showing = re.search(r'\b(?:showing\s+)?(?:\d+\s*-\s*)?(\d+)\s+of\s+(\d+)\s+(?:results|items|products)\b', header_text, re.IGNORECASE)
         if m_showing:
             showing_end = int(m_showing.group(1))
             total_items = int(m_showing.group(2))
             if total_items == containers_count or (showing_end == containers_count and total_items == containers_count):
-                return True, f"Explicit source total count '{total_items}' matches container count '{containers_count}'"
+                return True, f"Category results count '{total_items}' matches container count '{containers_count}' in header: '{header_text}'"
 
-        m_exact = re.search(r'\b(\d+)\s+(?:results|items|products)\b', body_text, re.IGNORECASE)
+        m_exact = re.search(r'\b(\d+)\s+(?:results|products)\b', header_text, re.IGNORECASE)
         if m_exact:
             total_items = int(m_exact.group(1))
             if total_items == containers_count:
-                return True, f"Explicit source total results '{total_items}' matches container count '{containers_count}'"
+                return True, f"Category total results '{total_items}' matches container count '{containers_count}' in header: '{header_text}'"
 
     return False, "No explicit terminal indicator or matching total results evidence found"
 
@@ -719,26 +841,79 @@ class WalmartProductionScraper:
                 status="IN_PROGRESS"
             )
 
-            # Check next page termination & reconcile source coverage
-            next_btn = await page.query_selector('[aria-label="Next Page"], a[aria-label="next page"], [data-automation-id="pagination-next-page"]')
+            # Check next page termination & reconcile source coverage scoped to category results pagination
+            pagination_container = None
+            container_selectors = [
+                '[data-automation-id="pagination"]',
+                'nav[aria-label*="pagination" i]',
+                'nav[aria-label*="Pagination"]',
+                '[data-testid="pagination"]',
+                'nav.paginator',
+                'ul.paginator-list',
+                'div[data-testid="search-results"] nav',
+                'main nav[aria-label*="pagination" i]',
+                '#maincontent nav[aria-label*="pagination" i]'
+            ]
+            for sel in container_selectors:
+                try:
+                    elem = await page.query_selector(sel)
+                    if elem:
+                        pagination_container = elem
+                        break
+                except Exception:
+                    continue
+
+            next_btn = None
+            if pagination_container:
+                next_selectors = [
+                    '[data-automation-id="pagination-next-page"]',
+                    '[data-testid="pagination-next-page"]',
+                    'a[aria-label*="Next Page" i]',
+                    'button[aria-label*="Next Page" i]',
+                    'a[aria-label*="next page" i]',
+                    'button[aria-label*="next page" i]',
+                    'a[aria-label="Next" i]',
+                    'button[aria-label="Next" i]',
+                    'li.paginator-btn-next a',
+                    'li.paginator-btn-next button',
+                    'button:has-text("Next")',
+                    'a:has-text("Next")'
+                ]
+                for sel in next_selectors:
+                    try:
+                        candidate = await pagination_container.query_selector(sel)
+                        if candidate:
+                            next_btn = candidate
+                            break
+                    except Exception:
+                        continue
+            else:
+                try:
+                    next_btn = await page.query_selector(
+                        '[data-automation-id="pagination-next-page"], [data-testid="pagination-next-page"]'
+                    )
+                except Exception:
+                    next_btn = None
+
             is_disabled = False
             has_next_btn = next_btn is not None
             if next_btn:
                 attr_dis = await next_btn.get_attribute("disabled")
                 aria_dis = await next_btn.get_attribute("aria-disabled")
-                is_disabled = (attr_dis is not None) or (aria_dis == "true")
+                cls_dis = await next_btn.get_attribute("class") or ""
+                is_disabled = (attr_dis is not None) or (aria_dis == "true") or ("disabled" in cls_dis.lower())
 
             # Source coverage reconciliation:
-            # 1. Next button explicitly present and disabled -> verified natural completion
+            # 1. Next button explicitly present and disabled in category pagination -> verified natural completion
             if is_disabled:
-                logger.info(f"[CATEGORY COMPLETE] Naturally completed at terminal page {current_page} for '{sub_category}' (Next button disabled). Total category yield: {category_count}")
+                logger.info(f"[CATEGORY COMPLETE] Naturally completed at terminal page {current_page} for '{sub_category}' (Category pagination Next button disabled). Total category yield: {category_count}")
                 natural_completion = True
                 break
             # 2. Next selector missing entirely -> require explicit source terminal/total evidence
             elif not has_next_btn:
                 # A short page (< 24 items) alone is NOT proof of exhaustion!
                 # Require explicit source terminal/total evidence to confirm exhaustion
-                has_term_ev, ev_reason = await check_explicit_terminal_evidence(page, len(product_elements))
+                has_term_ev, ev_reason = await check_explicit_terminal_evidence(page, len(product_elements), current_page=current_page)
                 if has_term_ev:
                     logger.info(f"[CATEGORY COMPLETE] Naturally completed single-page category for '{sub_category}' verified by explicit source terminal evidence: {ev_reason}. Total yield: {category_count}")
                     natural_completion = True
@@ -808,6 +983,16 @@ class WalmartProductionScraper:
         """
         start_time = time.time()
         logger.info(f"Starting scraper run for Store #{self.store.store_number} ({self.store.address}) on {self.crawl_date}")
+
+        if async_playwright is None:
+            logger.error("[DEPENDENCY ERROR] 'playwright' Python library is not installed in the current environment. To run live browser collection, install via 'pip install playwright && playwright install chromium' or run in Azure Container App using scraper/Dockerfile.")
+            return {
+                "success": False,
+                "reason": "playwright Python library is not installed. To execute live collection, install playwright or deploy using the Azure Container App Job Dockerfile in scraper/Dockerfile.",
+                "total_records": len(self.scraped_records),
+                "publication_gated": True,
+                "error": "PLAYWRIGHT_NOT_INSTALLED"
+            }
 
         async with async_playwright() as p:
             proxy = self._get_proxy_dict()

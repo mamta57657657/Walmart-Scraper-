@@ -1748,6 +1748,323 @@ class TestWalmartScraperRules(unittest.TestCase):
         if os.path.exists(test_staging): shutil.rmtree(test_staging)
         if os.path.exists(test_out): shutil.rmtree(test_out)
 
+    def test_actual_scrape_category_regression_page_1_of_10(self):
+        """
+        Regression: 'Page 1 of 10' must NOT match '1 of 1' or mark category complete.
+        Through actual scrape_category path:
+        - Pagination text indicates 'Page 1 of 10' with no disabled Next button.
+        - Must parse page numbers exactly (current 1 vs last 10).
+        - Must NOT mark route complete.
+        - Must record route in failed_routes and keep out of category_yields.
+        """
+        import asyncio
+        import shutil
+        from config import StoreConfig, ScraperSettings
+        from walmart_scraper import WalmartProductionScraper
+
+        test_staging = ".staging_reg_page1_of_10"
+        test_out = "output_reg_page1_of_10"
+        if os.path.exists(test_staging): shutil.rmtree(test_staging)
+        if os.path.exists(test_out): shutil.rmtree(test_out)
+
+        async def _run_test():
+            store = StoreConfig("4012", "75001", "Walmart Supercenter #4012", "1234 Main St, Dallas, TX 75201")
+            settings = ScraperSettings()
+            settings.delay_between_requests_sec = 0.0
+            settings.output_directory = test_out
+
+            scraper = WalmartProductionScraper(store, settings, crawl_date="2026-11-10", staging_dir=test_staging)
+
+            # Product items on page 1
+            t1 = ControlledMockElement("span", {"data-automation-id": "product-title"}, text="Coffee Beans 12 oz")
+            l1 = ControlledMockElement("a", {"href": "/ip/coffee/101"}, text="Coffee")
+            p1 = ControlledMockElement("div", {"data-item-id": "101"}, text="Coffee Beans 12 oz", children=[t1, l1])
+
+            t2 = ControlledMockElement("span", {"data-automation-id": "product-title"}, text="Dark Roast Coffee 12 oz")
+            l2 = ControlledMockElement("a", {"href": "/ip/coffee/102"}, text="Coffee")
+            p2 = ControlledMockElement("div", {"data-item-id": "102"}, text="Dark Roast Coffee 12 oz", children=[t2, l2])
+
+            # Pagination element displaying "Page 1 of 10" with NO next button (simulating missing selector on page 1)
+            # In prior version, '1 of 1' in 'page 1 of 10' matched True and falsely marked complete!
+            pag_elem = ControlledMockElement("nav", {"data-automation-id": "pagination"}, text="Page 1 of 10")
+
+            page = ControlledMockPage(
+                product_elements=[p1, p2],
+                next_button=None,
+                body_text="Page 1 of 10",
+                pagination_element=pag_elem
+            )
+
+            yield_count = await scraper.scrape_category(page, 0, "Beverages", "Coffee", "https://www.walmart.com/cp/coffee")
+
+            # Route MUST NOT be marked complete because Page 1 of 10 proves 9 more pages exist!
+            self.assertIn("Beverages > Coffee", scraper.failed_routes, "Route 'Page 1 of 10' must be recorded in failed_routes")
+            self.assertNotIn("Beverages > Coffee", scraper.category_yields, "Route 'Page 1 of 10' must NOT be in category_yields")
+
+            cp = scraper.checkpoint_mgr.load_checkpoint()
+            self.assertIn("Beverages > Coffee", cp.get("failed_routes", []))
+            self.assertNotIn("Beverages > Coffee", cp.get("completed_categories", []))
+
+        asyncio.run(_run_test())
+
+        if os.path.exists(test_staging): shutil.rmtree(test_staging)
+        if os.path.exists(test_out): shutil.rmtree(test_out)
+
+    def test_actual_scrape_category_regression_unrelated_disabled_next_and_unrelated_count(self):
+        """
+        Regression: Unrelated disabled button (e.g. carousel Next button) or unrelated count (e.g. cart items count)
+        must NOT be accepted as category exhaustion evidence.
+        Through actual scrape_category path:
+        - Page has 2 product containers.
+        - Page contains an unrelated recommendations carousel with a disabled Next button: <div class="carousel"><button disabled aria-label="Next">Next</button></div>.
+        - Page contains an unrelated cart badge saying '2 items in cart' or customer review '2 products reviewed'.
+        - Category pagination container has NO disabled Next button, and category search header has NO total matching count.
+        - Scraper must scope Next control to category pagination and scope count to category search header.
+        - Route must remain incomplete in failed_routes.
+        """
+        import asyncio
+        import shutil
+        from config import StoreConfig, ScraperSettings
+        from walmart_scraper import WalmartProductionScraper
+
+        test_staging = ".staging_reg_unrelated"
+        test_out = "output_reg_unrelated"
+        if os.path.exists(test_staging): shutil.rmtree(test_staging)
+        if os.path.exists(test_out): shutil.rmtree(test_out)
+
+        async def _run_test():
+            store = StoreConfig("4012", "75001", "Walmart Supercenter #4012", "1234 Main St, Dallas, TX 75201")
+            settings = ScraperSettings()
+            settings.delay_between_requests_sec = 0.0
+            settings.output_directory = test_out
+
+            scraper = WalmartProductionScraper(store, settings, crawl_date="2026-11-10", staging_dir=test_staging)
+
+            # 2 product items
+            t1 = ControlledMockElement("span", {"data-automation-id": "product-title"}, text="Green Tea Bags, 20 ct")
+            l1 = ControlledMockElement("a", {"href": "/ip/tea/201"}, text="Tea")
+            p1 = ControlledMockElement("div", {"data-item-id": "201"}, text="Green Tea", children=[t1, l1])
+
+            t2 = ControlledMockElement("span", {"data-automation-id": "product-title"}, text="Black Tea Bags, 20 ct")
+            l2 = ControlledMockElement("a", {"href": "/ip/tea/202"}, text="Tea")
+            p2 = ControlledMockElement("div", {"data-item-id": "202"}, text="Black Tea", children=[t2, l2])
+
+            # Unrelated carousel with disabled Next button OUTSIDE category pagination
+            unrelated_carousel_btn = ControlledMockElement("button", {"aria-label": "Next", "disabled": "true"}, text="Next")
+
+            # Unrelated cart count in body: "2 items in your cart"
+            # Category search header has NO count
+            class UnrelatedMockPage(ControlledMockPage):
+                async def query_selector(self, selector):
+                    sel = selector.lower()
+                    # Category pagination container is absent or has no Next button
+                    if 'pagination' in sel or 'paginator' in sel:
+                        return None
+                    # If someone queries a generic Next button on page (e.g. carousels):
+                    if 'carousel' in sel or selector == 'button:has-text("Next")':
+                        return unrelated_carousel_btn
+                    # Dedicated category header selector has no match
+                    if any(h in sel for h in ['results-count', 'search-header', 'total-results']):
+                        return None
+                    return None
+
+                async def inner_text(self, selector="body"):
+                    return "Welcome to Walmart. Cart: 2 items in cart. Customer Reviews: 2 products reviewed. You might also like."
+
+            page = UnrelatedMockPage(product_elements=[p1, p2])
+
+            yield_count = await scraper.scrape_category(page, 0, "Beverages", "Tea", "https://www.walmart.com/cp/tea")
+
+            # Route MUST NOT be marked complete! The generic carousel button and cart count are rejected.
+            self.assertIn("Beverages > Tea", scraper.failed_routes, "Unrelated carousel button and cart count must NOT complete route")
+            self.assertNotIn("Beverages > Tea", scraper.category_yields)
+
+            cp = scraper.checkpoint_mgr.load_checkpoint()
+            self.assertIn("Beverages > Tea", cp.get("failed_routes", []))
+            self.assertNotIn("Beverages > Tea", cp.get("completed_categories", []))
+
+        asyncio.run(_run_test())
+
+        if os.path.exists(test_staging): shutil.rmtree(test_staging)
+        if os.path.exists(test_out): shutil.rmtree(test_out)
+
+    def test_actual_scrape_category_regression_genuine_last_page(self):
+        """
+        Regression: Genuine last page evidence successfully and naturally completes category.
+        Through actual scrape_category path:
+        Case A: Single-page category with explicit 'Page 1 of 1' and matching category results header 'Showing 1-3 of 3 results'.
+        Case B: Multi-page category reaching terminal page with category pagination Next button disabled.
+        - Verifies that genuine exhaustion evidence is accepted.
+        - Commits route to category_yields and checkpoint.
+        - Removes route from failed_routes.
+        """
+        import asyncio
+        import shutil
+        from config import StoreConfig, ScraperSettings
+        from walmart_scraper import WalmartProductionScraper
+
+        test_staging = ".staging_reg_genuine_last"
+        test_out = "output_reg_genuine_last"
+        if os.path.exists(test_staging): shutil.rmtree(test_staging)
+        if os.path.exists(test_out): shutil.rmtree(test_out)
+
+        async def _run_test():
+            store = StoreConfig("4012", "75001", "Walmart Supercenter #4012", "1234 Main St, Dallas, TX 75201")
+            settings = ScraperSettings()
+            settings.delay_between_requests_sec = 0.0
+            settings.output_directory = test_out
+
+            scraper = WalmartProductionScraper(store, settings, crawl_date="2026-11-10", staging_dir=test_staging)
+
+            # Case A: 3 products with genuine category header 'Showing 1-3 of 3 results' and pagination 'Page 1 of 1'
+            p_items = []
+            for i in range(1, 4):
+                t = ControlledMockElement("span", {"data-automation-id": "product-title"}, text=f"Orange Juice {i}")
+                l = ControlledMockElement("a", {"href": f"/ip/juice/{i}"}, text="Juice")
+                p = ControlledMockElement("div", {"data-item-id": f"30{i}"}, text=f"Orange Juice {i}", children=[t, l])
+                p_items.append(p)
+
+            # Category pagination element with exact "Page 1 of 1"
+            pag_elem_1 = ControlledMockElement("nav", {"data-automation-id": "pagination"}, text="Page 1 of 1")
+            header_elem_1 = ControlledMockElement("div", {"data-automation-id": "results-count"}, text="Showing 1-3 of 3 results")
+
+            page1 = ControlledMockPage(
+                product_elements=p_items,
+                next_button=None,
+                body_text="Showing 1-3 of 3 results. Page 1 of 1.",
+                pagination_element=pag_elem_1,
+                header_element=header_elem_1
+            )
+
+            yield1 = await scraper.scrape_category(page1, 0, "Beverages", "Juices", "https://www.walmart.com/cp/juice")
+
+            self.assertEqual(yield1, 3)
+            self.assertNotIn("Beverages > Juices", scraper.failed_routes, "Genuine single-page route must NOT fail")
+            self.assertIn("Beverages > Juices", scraper.category_yields, "Genuine single-page route must be in category_yields")
+            self.assertEqual(scraper.category_yields["Beverages > Juices"], 3)
+
+            # Case B: Multi-page category reaching genuine last page with category pagination Next button disabled
+            p_multi = []
+            for i in range(4, 7):
+                t = ControlledMockElement("span", {"data-automation-id": "product-title"}, text=f"Apple Cider {i}")
+                l = ControlledMockElement("a", {"href": f"/ip/cider/{i}"}, text="Cider")
+                p = ControlledMockElement("div", {"data-item-id": f"40{i}"}, text=f"Apple Cider {i}", children=[t, l])
+                p_multi.append(p)
+
+            next_btn_disabled = ControlledMockElement("button", {"data-automation-id": "pagination-next-page", "disabled": "true"}, text="Next")
+            pag_elem_2 = ControlledMockElement(
+                "nav",
+                {"data-automation-id": "pagination"},
+                text="Page 2 of 2",
+                children=[next_btn_disabled]
+            )
+
+            page2 = ControlledMockPage(
+                product_elements=p_multi,
+                next_button=next_btn_disabled,
+                body_text="Page 2 of 2",
+                pagination_element=pag_elem_2
+            )
+
+            yield2 = await scraper.scrape_category(page2, 1, "Beverages", "Cider", "https://www.walmart.com/cp/cider")
+
+            self.assertEqual(yield2, 3)
+            self.assertNotIn("Beverages > Cider", scraper.failed_routes)
+            self.assertIn("Beverages > Cider", scraper.category_yields)
+
+            # Verify checkpoint commits both completed routes
+            cp = scraper.checkpoint_mgr.load_checkpoint()
+            self.assertIn("Beverages > Juices", cp.get("completed_categories", []))
+            self.assertIn("Beverages > Cider", cp.get("completed_categories", []))
+            self.assertEqual(cp.get("category_yields", {}).get("Beverages > Juices"), 3)
+            self.assertEqual(cp.get("category_yields", {}).get("Beverages > Cider"), 3)
+
+        asyncio.run(_run_test())
+
+        if os.path.exists(test_staging): shutil.rmtree(test_staging)
+        if os.path.exists(test_out): shutil.rmtree(test_out)
+
+    def test_unit_terminal_evidence_exact_page_numbers_and_scoping(self):
+        """
+        Unit tests directly verifying check_explicit_terminal_evidence logic:
+        - 'Page 1 of 10' -> False (not 1 of 1)
+        - 'Page 1 of 1' -> True
+        - '1 of 10' -> False
+        - '1 of 1' -> True
+        - 'Page 3 of 3' (current_page=3) -> True
+        - Unrelated disabled carousel button outside category pagination -> False
+        - Unrelated cart count '5 items in cart' -> False
+        - Category header 'Showing 1-5 of 5 results' (containers=5) -> True
+        - Category header 'Showing 1-5 of 5 results' (containers=2) -> False
+        """
+        import asyncio
+        from walmart_scraper import check_explicit_terminal_evidence
+
+        async def _run_checks():
+            # 1. Page 1 of 10
+            pag_1_10 = ControlledMockElement("nav", {"data-automation-id": "pagination"}, text="Page 1 of 10")
+            page_1_10 = ControlledMockPage(pagination_element=pag_1_10)
+            res, reason = await check_explicit_terminal_evidence(page_1_10, containers_count=2, current_page=1)
+            self.assertFalse(res, "'Page 1 of 10' must NOT be considered terminal")
+            self.assertIn("non-terminal", reason)
+
+            # 2. Page 1 of 1
+            pag_1_1 = ControlledMockElement("nav", {"data-automation-id": "pagination"}, text="Page 1 of 1")
+            page_1_1 = ControlledMockPage(pagination_element=pag_1_1)
+            res, reason = await check_explicit_terminal_evidence(page_1_1, containers_count=2, current_page=1)
+            self.assertTrue(res, "'Page 1 of 1' must be considered terminal")
+
+            # 3. '1 of 10' without 'Page' prefix
+            pag_raw_10 = ControlledMockElement("nav", {"data-automation-id": "pagination"}, text="1 of 10")
+            page_raw_10 = ControlledMockPage(pagination_element=pag_raw_10)
+            res, _ = await check_explicit_terminal_evidence(page_raw_10, containers_count=2, current_page=1)
+            self.assertFalse(res, "'1 of 10' must NOT be considered terminal")
+
+            # 4. '1 of 1' without 'Page' prefix
+            pag_raw_1 = ControlledMockElement("nav", {"data-automation-id": "pagination"}, text="1 of 1")
+            page_raw_1 = ControlledMockPage(pagination_element=pag_raw_1)
+            res, _ = await check_explicit_terminal_evidence(page_raw_1, containers_count=2, current_page=1)
+            self.assertTrue(res, "'1 of 1' must be considered terminal")
+
+            # 5. Page 3 of 3 (current_page=3)
+            pag_3_3 = ControlledMockElement("nav", {"data-automation-id": "pagination"}, text="Page 3 of 3")
+            page_3_3 = ControlledMockPage(pagination_element=pag_3_3)
+            res, _ = await check_explicit_terminal_evidence(page_3_3, containers_count=5, current_page=3)
+            self.assertTrue(res, "'Page 3 of 3' on current_page=3 must be considered terminal")
+
+            # 6. Unrelated disabled carousel button outside category pagination
+            unrelated_carousel_btn = ControlledMockElement("button", {"aria-label": "Next", "disabled": "true"}, text="Next")
+            class CarouselOnlyPage(ControlledMockPage):
+                async def query_selector(self, selector):
+                    if 'pagination' in selector.lower():
+                        return None
+                    if 'next' in selector.lower():
+                        return unrelated_carousel_btn
+                    return None
+            res, _ = await check_explicit_terminal_evidence(CarouselOnlyPage(), containers_count=5, current_page=1)
+            self.assertFalse(res, "Unrelated carousel button outside pagination must NOT be considered terminal")
+
+            # 7. Unrelated cart count '5 items' in raw body
+            class CartOnlyPage(ControlledMockPage):
+                async def query_selector(self, selector):
+                    return None
+                async def inner_text(self, selector="body"):
+                    return "Header. Cart: 5 items. Footer."
+            res, _ = await check_explicit_terminal_evidence(CartOnlyPage(), containers_count=5, current_page=1)
+            self.assertFalse(res, "Unrelated cart count must NOT be considered terminal")
+
+            # 8. Category header 'Showing 1-5 of 5 results' matching containers_count=5
+            header_match = ControlledMockElement("div", {"data-automation-id": "results-count"}, text="Showing 1-5 of 5 results")
+            page_header_match = ControlledMockPage(header_element=header_match)
+            res, _ = await check_explicit_terminal_evidence(page_header_match, containers_count=5, current_page=1)
+            self.assertTrue(res, "Category header matching containers_count must be considered terminal")
+
+            # 9. Category header 'Showing 1-5 of 5 results' mismatching containers_count=2
+            res_mismatch, _ = await check_explicit_terminal_evidence(page_header_match, containers_count=2, current_page=1)
+            self.assertFalse(res_mismatch, "Category header mismatching containers_count must NOT be considered terminal")
+
+        asyncio.run(_run_checks())
+
 # Controlled Mock Classes for Playwright Integration Tests
 class ControlledMockElement:
     def __init__(self, tag="div", attrs=None, text="", children=None):
@@ -1773,7 +2090,7 @@ class ControlledMockElement:
 
     def _matches(self, child, selector):
         sel = selector.lower()
-        if 'next' in sel and ('next' in child.attrs.get('aria-label', '').lower() or 'next' in child.text.lower()):
+        if 'next' in sel and ('next' in child.attrs.get('aria-label', '').lower() or 'next' in child.text.lower() or 'next' in child.attrs.get('data-automation-id', '').lower() or 'next' in child.attrs.get('data-testid', '').lower()):
             return True
         if 'sponsored' in sel and ('sponsored' in child.attrs.get('data-testid', '').lower() or 'sponsored' in child.text.lower()):
             return True
@@ -1811,11 +2128,13 @@ class ControlledMockNetworkResponse:
         return self._text
 
 class ControlledMockPage:
-    def __init__(self, product_elements=None, next_button=None, body_text="", page_title="Walmart Grocery"):
+    def __init__(self, product_elements=None, next_button=None, body_text="", page_title="Walmart Grocery", pagination_element=None, header_element=None):
         self.product_elements = product_elements or []
         self.next_button = next_button
         self._body_text = body_text
         self._page_title = page_title
+        self.pagination_element = pagination_element
+        self.header_element = header_element
         self.listeners = {}
 
     def on(self, event, handler):
@@ -1842,12 +2161,39 @@ class ControlledMockPage:
         return []
 
     async def query_selector(self, selector):
-        if any(term in selector for term in ['Next Page', 'next page', 'pagination-next-page', 'button:has-text("Next")']):
-            return self.next_button
-        if 'pagination' in selector:
-            if '1 of 1' in self._body_text or 'showing 1' in self._body_text:
-                return ControlledMockElement('nav', {'data-automation-id': 'pagination'}, text=self._body_text)
+        sel = selector.lower()
+
+        # Check for category header / results count elements
+        if any(term in sel for term in ['results-count', 'total-results', 'search-header', 'item-count', 'results-heading']):
+            if self.header_element:
+                return self.header_element
+            if any(k in self._body_text.lower() for k in ['showing', 'results', 'products']):
+                return ControlledMockElement('div', {'data-automation-id': 'results-count'}, text=self._body_text)
             return None
+
+        # Check for pagination container
+        if 'pagination' in sel or 'paginator' in sel:
+            if self.pagination_element:
+                return self.pagination_element
+            children = [self.next_button] if self.next_button else []
+            if any(k in self._body_text.lower() for k in ['page', 'of 1', 'of 10', '1 of', 'showing']):
+                return ControlledMockElement('nav', {'data-automation-id': 'pagination'}, text=self._body_text, children=children)
+            if self.next_button:
+                return ControlledMockElement('nav', {'data-automation-id': 'pagination'}, text="", children=children)
+            return None
+
+        # Direct Next Page queries
+        if any(term in sel for term in ['pagination-next-page', 'next page', 'button:has-text("next")']):
+            return self.next_button
+
+        if any(term in sel for term in ['main', '#maincontent', 'search-results']):
+            children = []
+            if self.header_element:
+                children.append(self.header_element)
+            if self.pagination_element:
+                children.append(self.pagination_element)
+            return ControlledMockElement('main', {'role': 'main'}, text=self._body_text, children=children)
+
         return None
 
 class ControlledMockContext:

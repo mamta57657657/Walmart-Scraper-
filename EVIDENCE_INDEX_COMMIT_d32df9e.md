@@ -26,14 +26,20 @@
 ### Path 1: Short Page & Ambiguous Pagination Incompletion
 - **Issue Corrected:** Previously, `scrape_category` treated a first page with fewer than 24 containers and no Next selector as complete without affirmative evidence of category exhaustion. In controlled testing, a 1-container page with no terminal indicator was erroneously committed as complete. A short page is **not** proof of exhaustion.
 - **Correction in `scraper/walmart_scraper.py`:**
-  - Implemented `check_explicit_terminal_evidence(page, containers_count)`.
+  - Implemented `check_explicit_terminal_evidence(page, containers_count, current_page)`.
   - A short page (< 24 items) alone is strictly disqualified from proving exhaustion.
   - Category completion requires affirmative source terminal indicators:
-    1. An explicitly present Next button that is disabled (`disabled` attribute or `aria-disabled="true"`).
-    2. An explicit pagination indicator confirming terminal / single-page state (e.g., `'1 of 1'` or `'Page 1 of 1'`).
-    3. An explicit source total results count matching the containers found (e.g., `'5 results'` or `'showing 1-5 of 5 results'`).
+    1. Scoped Next button present and disabled within the category pagination navigation container (rejecting generic carousel or modal buttons).
+    2. Explicit page indicator parsed as exact numbers (current vs last page, e.g. `'Page 1 of 1'`, `'1 of 1'`, `'Page 3 of 3'`), strictly rejecting substring false-positives like `'Page 1 of 10'`.
+    3. Explicit source total results count matching the containers found (e.g., `'5 results'` or `'showing 1-5 of 5 results'`) scoped strictly to the category search header (rejecting unrelated cart or review counts).
   - Without explicit terminal evidence, missing or ambiguous pagination logs `[AMBIGUOUS PAGINATION INCOMPLETE]`, adds the route to `failed_routes`, sets `route_failed = True` and `natural_completion = False`, and durably commits the unresolved state to `.checkpoint.json`.
-- **Integrated Test:** `test_actual_scrape_category_short_page_without_terminal_evidence_remains_incomplete` and `test_actual_scrape_category_explicit_terminal_evidence_commits_complete`.
+- **Integrated Tests:**
+  - `test_actual_scrape_category_regression_page_1_of_10` (verifies Page 1 of 10 is rejected through actual scrape_category path).
+  - `test_actual_scrape_category_regression_unrelated_disabled_next_and_unrelated_count` (verifies unrelated carousel Next button and body cart count are rejected).
+  - `test_actual_scrape_category_regression_genuine_last_page` (verifies genuine Page 1 of 1 and terminal disabled Next button naturally complete and commit).
+  - `test_unit_terminal_evidence_exact_page_numbers_and_scoping` (direct unit tests of page parsing and selector scoping).
+  - `test_actual_scrape_category_short_page_without_terminal_evidence_remains_incomplete`.
+  - `test_actual_scrape_category_explicit_terminal_evidence_commits_complete`.
 
 ### Path 2: Safety Cap Resume & Initialization of `natural_completion` and `route_failed`
 - **Issue Corrected:** With `max_pages_per_category=1` and a saved `current_page=2`, the loop was skipped entirely, leaving `natural_completion` uninitialized and causing `UnboundLocalError`.

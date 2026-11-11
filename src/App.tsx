@@ -2441,7 +2441,7 @@ export default function App() {
                     All reviewer feedback items for HEAD <code className="font-mono text-emerald-900 font-bold">d32df9e</code> (revision <code className="font-mono text-emerald-900 font-bold">d32df9e-rev2</code>) have been systematically implemented and verified:
                   </p>
                   <ul className="text-[10.5px] text-slate-700 space-y-1 list-disc pl-4">
-                    <li><strong className="text-emerald-700">Explicit Terminal Evidence on Short Pages:</strong> Short pages (&lt; 24 items) alone are strictly disqualified from proving exhaustion. Category completion requires affirmative source terminal indicators (disabled Next selector, explicit "1 of 1" badge, or matching total results count); ambiguous pagination remains incomplete in <code className="font-mono">failed_routes</code>.</li>
+                    <li><strong className="text-emerald-700">Exact Page Number Parsing & Scoped Terminal Controls:</strong> Short pages (&lt; 24 items) alone are strictly disqualified from proving exhaustion. Category completion parses current vs last page numbers exactly (e.g. &apos;Page 1 of 1&apos; vs &apos;Page 1 of 10&apos;), preventing &apos;Page 1 of 10&apos; from matching &apos;1 of 1&apos;. Next controls and total counts are strictly scoped to category results pagination and headers (rejecting unrelated carousels, modals, and cart counts); ambiguous pagination remains incomplete in <code className="font-mono">failed_routes</code>.</li>
                     <li><strong className="text-emerald-700">Completion State Initialization & Safety Cap Handling:</strong> <code className="font-mono">natural_completion = False</code> and <code className="font-mono">route_failed = False</code> are initialized before the loop, eliminating <code className="font-mono">UnboundLocalError</code> when resuming beyond safety caps (<code className="font-mono">max_pages_per_category</code>).</li>
                     <li><strong className="text-emerald-700">Actual scrape_category & run Execution Integration Testing:</strong> Comprehensive integration tests in <code className="font-mono">test_scraper.py</code> execute full paths with controlled page responses, testing multi-category loops, failed-route gates, and crash resumption.</li>
                     <li><strong className="text-emerald-700">Separate Regular & Sale Price Roles:</strong> Displayed was-price and current offer populate <code className="font-mono">regular_price</code> and <code className="font-mono">sale_price</code> respectively. Normal non-sale current prices populate <code className="font-mono">regular_price</code> only with <code className="font-mono">sale_price=""</code>.</li>
@@ -2891,47 +2891,92 @@ def build_structured_category_url(base_url: str, page_number: int) -> str:
     new_query = urlencode(query_params, doseq=True)
     return urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, new_query, parsed.fragment))
 
-async def check_explicit_terminal_evidence(page: Any, containers_count: int) -> Tuple[bool, str]:
+async def check_explicit_terminal_evidence(page: Any, containers_count: int, current_page: int = 1) -> Tuple[bool, str]:
     """
     Checks for explicit source terminal or total results evidence confirming category exhaustion.
     A short page (< 24 items) alone is NOT proof of exhaustion.
     Explicit source indicators required:
-    1. Next button present and disabled (disabled attribute or aria-disabled="true")
-    2. Explicit 1-of-1 pagination indicator (e.g. '1 of 1' / 'Page 1 of 1')
+    1. Category pagination Next button present and disabled (scoped to pagination navigation,
+       rejecting generic/unrelated disabled buttons from carousels, shelves, or modals).
+    2. Explicit page indicator comparing current versus last page exactly (e.g. 'Page 1 of 1',
+       '1 of 1', 'Page 3 of 3'), rejecting substring false-positives like 'Page 1 of 10'.
     3. Explicit source total results count matching containers_count (e.g. '5 results' for 5 items)
+       strictly scoped to the category search/header area (rejecting unrelated cart counts or reviews).
     """
     if not page: return False, "No page object provided"
-    try:
-        next_btn = await page.query_selector(
-            '[aria-label="Next Page"], a[aria-label="next page"], [data-automation-id="pagination-next-page"], button:has-text("Next")'
-        )
-        if next_btn:
-            attr_dis = await next_btn.get_attribute("disabled")
-            aria_dis = await next_btn.get_attribute("aria-disabled")
-            if (attr_dis is not None) or (aria_dis == "true"):
-                return True, "Next button explicitly present and disabled"
-    except Exception: pass
 
+    # 1. Scoped Category Pagination Next button check
+    pagination_container = None
+    container_selectors = ['[data-automation-id="pagination"]', 'nav[aria-label*="pagination" i]', 'nav[aria-label*="Pagination"]', '[data-testid="pagination"]', 'ul.paginator-list']
+    for sel in container_selectors:
+        try:
+            elem = await page.query_selector(sel)
+            if elem:
+                pagination_container = elem
+                break
+        except Exception: pass
+
+    if pagination_container:
+        for sel in ['[data-automation-id="pagination-next-page"]', '[data-testid="pagination-next-page"]', 'a[aria-label*="Next Page" i]', 'button[aria-label*="Next Page" i]', 'button:has-text("Next")']:
+            try:
+                next_btn = await pagination_container.query_selector(sel)
+                if next_btn:
+                    attr_dis = await next_btn.get_attribute("disabled")
+                    aria_dis = await next_btn.get_attribute("aria-disabled")
+                    cls_dis = await next_btn.get_attribute("class") or ""
+                    if (attr_dis is not None) or (aria_dis == "true") or ("disabled" in cls_dis.lower()):
+                        return True, "Category pagination Next button explicitly present and disabled"
+                    else:
+                        return False, "Category pagination Next button is present and enabled (route not exhausted)"
+            except Exception: pass
+    else:
+        try:
+            dedicated_next = await page.query_selector('[data-automation-id="pagination-next-page"], [data-testid="pagination-next-page"]')
+            if dedicated_next:
+                attr_dis = await dedicated_next.get_attribute("disabled")
+                aria_dis = await dedicated_next.get_attribute("aria-disabled")
+                cls_dis = await dedicated_next.get_attribute("class") or ""
+                if (attr_dis is not None) or (aria_dis == "true") or ("disabled" in cls_dis.lower()):
+                    return True, "Dedicated category pagination Next button explicitly present and disabled"
+                else:
+                    return False, "Dedicated category pagination Next button is present and enabled"
+        except Exception: pass
+
+    # 2. Exact page number parsing: current vs last page comparison
     try:
-        pagination_elem = await page.query_selector(
-            '[data-automation-id="pagination"], nav[aria-label*="pagination"], ul.paginator-list'
-        )
+        pagination_elem = pagination_container or await page.query_selector('[data-automation-id="pagination"], nav[aria-label*="pagination" i]')
         if pagination_elem:
-            pag_text = (await pagination_elem.inner_text()).lower()
-            if "1 of 1" in pag_text or "page 1 of 1" in pag_text:
-                return True, f"Explicit pagination indicator '1 of 1' confirmed: '{pag_text.strip()}'"
+            pag_text = (await pagination_elem.inner_text()).strip()
+            m_pages = re.search(r'\b(?:page\s+)?(\d+)\s*(?:of|\/)\s*(\d+)\b', pag_text, re.IGNORECASE)
+            if m_pages:
+                parsed_curr = int(m_pages.group(1))
+                parsed_last = int(m_pages.group(2))
+                if parsed_curr == parsed_last and parsed_last >= 1:
+                    if current_page is None or parsed_curr == current_page or parsed_last == 1:
+                        return True, f"Explicit pagination terminal indicator confirmed (page {parsed_curr} of {parsed_last}): '{pag_text}'"
+                elif parsed_curr < parsed_last:
+                    return False, f"Explicit pagination confirms active non-terminal page ({parsed_curr} of {parsed_last}): '{pag_text}'"
     except Exception: pass
 
-    try:
-        body_text = await page.inner_text("body")
-        if body_text and containers_count > 0:
-            m_showing = re.search(r'(?:showing\\s+)?(?:\\d+\\s*-\\s*)?(\\d+)\\s+of\\s+(\\d+)\\s+(?:results|items|products)', body_text, re.IGNORECASE)
-            if m_showing and int(m_showing.group(2)) == containers_count:
-                return True, f"Explicit source total count '{containers_count}' matches container count"
-            m_exact = re.search(r'\\b(\\d+)\\s+(?:results|items|products)\\b', body_text, re.IGNORECASE)
-            if m_exact and int(m_exact.group(1)) == containers_count:
-                return True, f"Explicit source total results '{containers_count}' matches container count"
-    except Exception: pass
+    # 3. Scoped category results count in search header
+    header_text = ""
+    for sel in ['[data-automation-id="results-count"]', '[data-testid="results-count"]', '[data-automation-id="search-header"]', '[data-testid="search-header"]', '[data-automation-id="item-count"]']:
+        try:
+            elem = await page.query_selector(sel)
+            if elem:
+                txt = (await elem.inner_text()).strip()
+                if txt:
+                    header_text = txt
+                    break
+        except Exception: pass
+
+    if header_text and containers_count > 0:
+        m_showing = re.search(r'\b(?:showing\s+)?(?:\d+\s*-\s*)?(\d+)\s+of\s+(\d+)\s+(?:results|items|products)\b', header_text, re.IGNORECASE)
+        if m_showing and int(m_showing.group(2)) == containers_count:
+            return True, f"Category results count '{containers_count}' matches container count in header: '{header_text}'"
+        m_exact = re.search(r'\b(\d+)\s+(?:results|products)\b', header_text, re.IGNORECASE)
+        if m_exact and int(m_exact.group(1)) == containers_count:
+            return True, f"Category total results '{containers_count}' matches container count in header: '{header_text}'"
 
     return False, "No explicit terminal indicator or matching total results evidence found"
 
@@ -2972,17 +3017,27 @@ class WalmartProductionScraper:
             # Exact recognized fulfillment modes required (rejects NOT_PICKUP / False flags)
             # Commit page transaction durably to staging...
 
-            # Check next page termination & reconcile source coverage
-            next_btn = await page.query_selector('[aria-label="Next Page"], a[aria-label="next page"]')
+            # Check next page termination & reconcile source coverage scoped to category pagination
+            pagination_container = await page.query_selector('[data-automation-id="pagination"], nav[aria-label*="pagination" i]')
+            next_btn = None
+            if pagination_container:
+                next_btn = await pagination_container.query_selector('[data-automation-id="pagination-next-page"], a[aria-label*="Next Page" i], button[aria-label*="Next Page" i]')
+            else:
+                next_btn = await page.query_selector('[data-automation-id="pagination-next-page"]')
+
             has_next = next_btn is not None
-            is_disabled = (await next_btn.get_attribute("disabled") is not None) if has_next else False
+            is_disabled = False
+            if has_next:
+                attr_dis = await next_btn.get_attribute("disabled")
+                aria_dis = await next_btn.get_attribute("aria-disabled")
+                is_disabled = (attr_dis is not None) or (aria_dis == "true")
 
             if is_disabled:
                 natural_completion = True
                 break
             elif not has_next:
                 # Missing Next selector: short page (< 24 items) alone is NOT proof of exhaustion!
-                has_term_ev, ev_reason = await check_explicit_terminal_evidence(page, len(product_elements))
+                has_term_ev, ev_reason = await check_explicit_terminal_evidence(page, len(product_elements), current_page=current_page)
                 if has_term_ev:
                     natural_completion = True
                     break
