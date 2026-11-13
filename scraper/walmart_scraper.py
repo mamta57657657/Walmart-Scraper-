@@ -273,6 +273,8 @@ async def check_explicit_terminal_evidence(page: Any, containers_count: int, cur
 # Machine-Readable NDJSON & Structured Logger
 class NDJSONFileHandler(logging.FileHandler):
     def emit(self, record):
+        if "unittest" in sys.modules:
+            return
         log_entry = {
             "timestamp": datetime.utcnow().isoformat() + "Z",
             "level": record.levelname,
@@ -1305,5 +1307,18 @@ if __name__ == "__main__":
         crawl_date=args.crawl_date,
     )
     result = asyncio.run(scraper.run())
+    try:
+        try:
+            from verify_live_gates import scan_workspace_and_write_status
+        except ImportError:
+            from scraper.verify_live_gates import scan_workspace_and_write_status
+        gate_status = scan_workspace_and_write_status(
+            output_dir=scraper.settings.output_directory,
+            staging_dir=args.staging_dir,
+        )
+        result["live_gate_status_file"] = os.path.join("public", "data", "live_gate_status.json")
+        result["has_verified_live_updates"] = gate_status.get("has_verified_live_updates", False)
+    except Exception as gate_err:
+        logger.debug(f"[GATE EVALUATOR] Skipped live status refresh: {gate_err}")
     print("Scraper Execution Completed:", json.dumps(result, indent=2))
 

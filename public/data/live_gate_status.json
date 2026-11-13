@@ -1,0 +1,44 @@
+{
+  "evaluatedAt": "2026-11-13T11:57:39Z",
+  "gates": [
+    {
+      "id": "pagination",
+      "title": "Pagination corrections",
+      "status": "PASSED",
+      "summary": "Exact page-number parsing and category-scoped Next/count terminal evidence verified via source inspection and focused regressions.",
+      "evidenceNote": "58/58 Python + 16/16 TS tests passing"
+    },
+    {
+      "id": "coverage",
+      "title": "Full catalog coverage",
+      "status": "PENDING",
+      "summary": "Multi-page deduplication & sequential traversal verified in integration tests; live 21-category run blocked here by unproxied datacenter perimeter check.",
+      "evidenceNote": "Code ready \u2022 Needs residential proxy"
+    },
+    {
+      "id": "pickup_pricing",
+      "title": "Live Walmart Pickup pricing",
+      "status": "PENDING",
+      "summary": "SSR __NEXT_DATA__ & GraphQL PICKUP binding verified in tests; live store #4012 capture requires unblocked residential proxy IP.",
+      "evidenceNote": "Offline fixtures & SSR path verified"
+    },
+    {
+      "id": "recovery",
+      "title": "Interruption and recovery",
+      "status": "PENDING",
+      "summary": "SIGINT/SIGTERM checkpointing, mid-category page resume & cross-date delivery preservation verified; live crash replay pending.",
+      "evidenceNote": "Code & manifest protection verified"
+    },
+    {
+      "id": "azure",
+      "title": "Azure operation",
+      "status": "PENDING",
+      "summary": "Key Vault secret lookup & gated Azure Blob release-before-pointer upload added in azure_integration.py; Container App execution pending.",
+      "evidenceNote": "Container App Job unexecuted"
+    }
+  ],
+  "rejectedReasons": [
+    "NDJSON log contains offline fixture markers."
+  ],
+  "hasVerifiedLiveUpdates": false
+}

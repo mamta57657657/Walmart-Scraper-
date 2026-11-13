@@ -1,0 +1,19 @@
+{
+  "store_number": "4012",
+  "crawl_date": "2026-11-08",
+  "last_updated": "2026-11-13T11:57:21.914299Z",
+  "category_index": 0,
+  "current_page": 1,
+  "completed_categories": [],
+  "category_yields": {},
+  "failed_routes": [
+    "Beverages > Soft Drinks"
+  ],
+  "flushed_records_count": 1,
+  "seen_record_signatures": [
+    "https://www.walmart.com/ip/soda/201_75001"
+  ],
+  "has_evidence_failure": false,
+  "evidence_failure_reason": "",
+  "status": "IN_PROGRESS"
+}

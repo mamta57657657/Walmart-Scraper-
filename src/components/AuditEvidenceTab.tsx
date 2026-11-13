@@ -41,6 +41,13 @@ import {
 } from '../utils/scraperData';
 import { SAMPLE_FIELD_TRACES, STORE_PRICE_COMPARISONS } from '../utils/fieldTraceData';
 import { getStoreByNumber } from '../utils/usStoresData';
+import {
+  DEFAULT_ACCEPTANCE_GATES,
+  evaluateLiveArtifacts,
+  type AcceptanceGateResult,
+} from '../utils/gateEvaluator';
+
+const LIVE_GATE_STORAGE_KEY = 'walmart_verified_live_gates_v1';
 
 export function AuditEvidenceTab({
   selectedStore = '4012'
@@ -55,6 +62,128 @@ export function AuditEvidenceTab({
   const [selectedSampleIndex, setSelectedSampleIndex] = useState(0);
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
   const [showEvidenceIndex, setShowEvidenceIndex] = useState(false);
+  const [acceptanceGates, setAcceptanceGates] = useState<AcceptanceGateResult[]>(() => {
+    try {
+      const saved = window.localStorage.getItem(LIVE_GATE_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length === 5) return parsed as AcceptanceGateResult[];
+      }
+    } catch {
+      // Ignore storage errors
+    }
+    return DEFAULT_ACCEPTANCE_GATES;
+  });
+  const [gateVerifyNotice, setGateVerifyNotice] = useState<string | null>(null);
+  const [gateRejectedNotes, setGateRejectedNotes] = useState<string[]>([]);
+
+  React.useEffect(() => {
+    let active = true;
+    const saved = (() => {
+      try {
+        return window.localStorage.getItem(LIVE_GATE_STORAGE_KEY);
+      } catch {
+        return null;
+      }
+    })();
+    if (saved) return;
+
+    fetch('/data/live_gate_status.json', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!active || !data || !Array.isArray(data.gates) || data.gates.length !== 5) return;
+        setAcceptanceGates(data.gates as AcceptanceGateResult[]);
+      })
+      .catch(() => {
+        // Keep default status cleanly when status file is absent
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const handleRefreshDiskStatus = async () => {
+    try {
+      window.localStorage.removeItem(LIVE_GATE_STORAGE_KEY);
+      const res = await fetch('/data/live_gate_status.json', { cache: 'no-store' });
+      if (!res.ok) {
+        setAcceptanceGates(DEFAULT_ACCEPTANCE_GATES);
+        setGateRejectedNotes([]);
+        setGateVerifyNotice('Checked workspace: no live run artifacts found on disk yet (4 live gates remain PENDING).');
+        return;
+      }
+      const data = await res.json();
+      if (Array.isArray(data.gates) && data.gates.length === 5) {
+        setAcceptanceGates(data.gates as AcceptanceGateResult[]);
+        setGateRejectedNotes(Array.isArray(data.rejectedReasons) ? data.rejectedReasons : []);
+        const passedLiveCount = (data.gates as AcceptanceGateResult[]).filter(
+          (g) => g.id !== 'pagination' && g.status === 'PASSED'
+        ).length;
+        setGateVerifyNotice(
+          passedLiveCount > 0
+            ? `Verified ${passedLiveCount} live acceptance gate(s) from /data/live_gate_status.json.`
+            : 'Checked /data/live_gate_status.json: pagination passed; 4 live/Azure gates remain PENDING until live proxy + Azure run artifacts are present.'
+        );
+      }
+    } catch {
+      setGateVerifyNotice('Could not read /data/live_gate_status.json; retaining baseline gate state.');
+    }
+  };
+
+  const handleVerifyUploadedArtifacts = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    let ndjsonText = '';
+    let rawEvidenceText = '';
+    let azureLogText = '';
+    const manifestTexts: string[] = [];
+
+    for (const file of Array.from(files)) {
+      const content = await file.text();
+      const lowerName = file.name.toLowerCase();
+      if (lowerName.includes('raw_evidence') || lowerName.endsWith('.jsonl')) {
+        rawEvidenceText += '\n' + content;
+      } else if (lowerName.includes('manifest') && lowerName.endsWith('.json')) {
+        manifestTexts.push(content);
+      } else if (lowerName.includes('azure')) {
+        azureLogText += '\n' + content;
+      } else if (lowerName.endsWith('.ndjson') || lowerName.endsWith('.log') || lowerName.endsWith('.txt')) {
+        ndjsonText += '\n' + content;
+      } else if (lowerName.endsWith('.json')) {
+        manifestTexts.push(content);
+      }
+    }
+
+    const report = evaluateLiveArtifacts({
+      ndjsonText,
+      rawEvidenceText,
+      manifestTexts,
+      azureLogText,
+    });
+    setAcceptanceGates(report.gates);
+    setGateRejectedNotes(report.rejectedReasons);
+    try {
+      window.localStorage.setItem(LIVE_GATE_STORAGE_KEY, JSON.stringify(report.gates));
+    } catch {
+      // Ignore storage error
+    }
+    const passedLiveCount = report.gates.filter((g) => g.id !== 'pagination' && g.status === 'PASSED').length;
+    setGateVerifyNotice(
+      passedLiveCount > 0
+        ? `Automatically promoted ${passedLiveCount} live gate(s) to PASSED from verified artifacts.`
+        : 'Inspected uploaded file(s): no genuine live/Azure gate promoted (offline fixtures and blocked pages are rejected).'
+    );
+  };
+
+  const handleResetGates = () => {
+    try {
+      window.localStorage.removeItem(LIVE_GATE_STORAGE_KEY);
+    } catch {
+      // Ignore
+    }
+    setAcceptanceGates(DEFAULT_ACCEPTANCE_GATES);
+    setGateRejectedNotes([]);
+    setGateVerifyNotice('Reset acceptance gates to baseline workspace state.');
+  };
 
   // Hard interruption simulator state
   const [simState, setSimState] = useState<'idle' | 'running' | 'interrupted' | 'resumed' | 'completed'>('idle');
@@ -268,80 +397,93 @@ export function AuditEvidenceTab({
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                   <span>Current Project Status &amp; Acceptance Gates</span>
                 </span>
-                <button
-                  onClick={() => setShowEvidenceIndex(!showEvidenceIndex)}
-                  className="px-2.5 py-1 bg-sky-100 hover:bg-sky-200 text-sky-900 rounded font-semibold text-[10.5px] border border-sky-300 flex items-center gap-1 cursor-pointer"
-                >
-                  <FileText className="w-3.5 h-3.5 text-sky-700" />
-                  <span>{showEvidenceIndex ? 'Hide Evidence Index Dossier' : 'Inspect Full Evidence Index (EVIDENCE_INDEX_COMMIT_d32df9e.md — Revision d32df9e-rev2)'}</span>
-                </button>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <label className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-600 text-white rounded font-semibold text-[10.5px] flex items-center gap-1 cursor-pointer shadow-2xs">
+                    <FileCheck className="w-3.5 h-3.5" />
+                    <span>Verify Live Artifacts (.jsonl / .ndjson / manifest)</span>
+                    <input
+                      type="file"
+                      multiple
+                      accept=".json,.jsonl,.ndjson,.log,.txt"
+                      className="hidden"
+                      onChange={(e) => {
+                        void handleVerifyUploadedArtifacts(e.target.files);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                  <button
+                    onClick={() => void handleRefreshDiskStatus()}
+                    className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded font-semibold text-[10.5px] border border-slate-300 flex items-center gap-1 cursor-pointer"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    <span>Re-check Disk Status</span>
+                  </button>
+                  <button
+                    onClick={handleResetGates}
+                    className="px-2 py-1 bg-white hover:bg-slate-100 text-slate-600 rounded font-medium text-[10.5px] border border-slate-300 cursor-pointer"
+                  >
+                    Reset
+                  </button>
+                  <button
+                    onClick={() => setShowEvidenceIndex(!showEvidenceIndex)}
+                    className="px-2.5 py-1 bg-sky-100 hover:bg-sky-200 text-sky-900 rounded font-semibold text-[10.5px] border border-sky-300 flex items-center gap-1 cursor-pointer"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-sky-700" />
+                    <span>{showEvidenceIndex ? 'Hide Evidence Index Dossier' : 'Inspect Full Evidence Index (EVIDENCE_INDEX_COMMIT_d32df9e.md — Revision d32df9e-rev2)'}</span>
+                  </button>
+                </div>
               </div>
 
+              {(gateVerifyNotice || gateRejectedNotes.length > 0) && (
+                <div className="bg-slate-50 border border-slate-200 rounded p-2 text-[10.5px] space-y-1">
+                  {gateVerifyNotice && (
+                    <div className="font-semibold text-slate-800">{gateVerifyNotice}</div>
+                  )}
+                  {gateRejectedNotes.map((reason, idx) => (
+                    <div key={idx} className="text-amber-800 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3 shrink-0" />
+                      <span>{reason}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 text-[10.5px]">
-                <div className="p-2.5 rounded bg-emerald-50/70 border border-emerald-200 space-y-1 flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center justify-between gap-1">
-                      <span className="font-bold text-emerald-900">Pagination corrections</span>
-                      <span className="bg-emerald-600 text-white font-bold px-1.5 py-0.2 rounded text-[9px] shrink-0">PASSED</span>
+                {acceptanceGates.map((gate) => {
+                  const isPassed = gate.status === 'PASSED';
+                  return (
+                    <div
+                      key={gate.id}
+                      className={`p-2.5 rounded border space-y-1 flex flex-col justify-between ${
+                        isPassed
+                          ? 'bg-emerald-50/70 border-emerald-200'
+                          : 'bg-amber-50/70 border-amber-200'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-1">
+                          <span className={`font-bold ${isPassed ? 'text-emerald-900' : 'text-amber-950'}`}>
+                            {gate.title}
+                          </span>
+                          <span
+                            className={`text-white font-bold px-1.5 py-0.2 rounded text-[9px] shrink-0 ${
+                              isPassed ? 'bg-emerald-600' : 'bg-amber-600'
+                            }`}
+                          >
+                            {gate.status}
+                          </span>
+                        </div>
+                        <p className="text-slate-600 text-[10px] leading-tight mt-1">
+                          {gate.summary}
+                        </p>
+                      </div>
+                      <div className={`font-semibold text-[9.5px] pt-1 ${isPassed ? 'text-emerald-800' : 'text-amber-800'}`}>
+                        {gate.evidenceNote}
+                      </div>
                     </div>
-                    <p className="text-slate-600 text-[10px] leading-tight mt-1">
-                      Exact page-number parsing and category-scoped Next/count terminal evidence verified via source inspection and focused regressions.
-                    </p>
-                  </div>
-                  <div className="text-emerald-800 font-semibold text-[9.5px] pt-1">56/56 Python + 13/13 TS tests passing</div>
-                </div>
-
-                <div className="p-2.5 rounded bg-amber-50/70 border border-amber-200 space-y-1 flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center justify-between gap-1">
-                      <span className="font-bold text-amber-950">Full catalog coverage</span>
-                      <span className="bg-amber-600 text-white font-bold px-1.5 py-0.2 rounded text-[9px] shrink-0">PENDING</span>
-                    </div>
-                    <p className="text-slate-600 text-[10px] leading-tight mt-1">
-                      Multi-page deduplication &amp; sequential traversal verified in integration tests; live 21-category run blocked here by unproxied datacenter perimeter check.
-                    </p>
-                  </div>
-                  <div className="text-amber-800 font-semibold text-[9.5px] pt-1">Code ready • Needs residential proxy</div>
-                </div>
-
-                <div className="p-2.5 rounded bg-amber-50/70 border border-amber-200 space-y-1 flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center justify-between gap-1">
-                      <span className="font-bold text-amber-950">Live Walmart Pickup pricing</span>
-                      <span className="bg-amber-600 text-white font-bold px-1.5 py-0.2 rounded text-[9px] shrink-0">PENDING</span>
-                    </div>
-                    <p className="text-slate-600 text-[10px] leading-tight mt-1">
-                      SSR __NEXT_DATA__ &amp; GraphQL PICKUP binding verified in tests; live store #4012 capture requires unblocked residential proxy IP.
-                    </p>
-                  </div>
-                  <div className="text-amber-800 font-semibold text-[9.5px] pt-1">Offline fixtures &amp; SSR path verified</div>
-                </div>
-
-                <div className="p-2.5 rounded bg-amber-50/70 border border-amber-200 space-y-1 flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center justify-between gap-1">
-                      <span className="font-bold text-amber-950">Interruption and recovery</span>
-                      <span className="bg-amber-600 text-white font-bold px-1.5 py-0.2 rounded text-[9px] shrink-0">PENDING</span>
-                    </div>
-                    <p className="text-slate-600 text-[10px] leading-tight mt-1">
-                      SIGINT/SIGTERM checkpointing, mid-category page resume &amp; cross-date delivery preservation verified; live crash replay pending.
-                    </p>
-                  </div>
-                  <div className="text-amber-800 font-semibold text-[9.5px] pt-1">Code &amp; manifest protection verified</div>
-                </div>
-
-                <div className="p-2.5 rounded bg-amber-50/70 border border-amber-200 space-y-1 flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center justify-between gap-1">
-                      <span className="font-bold text-amber-950">Azure operation</span>
-                      <span className="bg-amber-600 text-white font-bold px-1.5 py-0.2 rounded text-[9px] shrink-0">PENDING</span>
-                    </div>
-                    <p className="text-slate-600 text-[10px] leading-tight mt-1">
-                      Key Vault secret lookup &amp; gated Azure Blob release-before-pointer upload added in azure_integration.py; Container App execution pending.
-                    </p>
-                  </div>
-                  <div className="text-amber-800 font-semibold text-[9.5px] pt-1">Container App Job unexecuted</div>
-                </div>
+                  );
+                })}
               </div>
 
               {/* Expandable Evidence Index Markdown Reader */}

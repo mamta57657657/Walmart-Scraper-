@@ -1,0 +1,26 @@
+[
+  {
+    "zipcode": "75001",
+    "store_name": "Walmart Supercenter #4012",
+    "store_location": "1234 Main St, Dallas, TX 75201",
+    "store_logo": "https://i5.walmartimages.com/dfw/63fd9f59-b3e1/7a569e53-f29a-4c3d-bfaf-6f7a158bfadd/v1/walmartLogo.svg",
+    "store_brand": "no",
+    "category": "Beverages",
+    "sub_category": "Soft Drinks",
+    "product_title": "Soda 12 Pack",
+    "weight": "12 Pack",
+    "regular_price": "",
+    "sale_price": "",
+    "volume_deals_description": "",
+    "volume_deals_price": "",
+    "digital_deals_description": "",
+    "digital_deals_price": "",
+    "image_url": "",
+    "url": "https://www.walmart.com/ip/soda/201",
+    "upc": "",
+    "gupc": "",
+    "ppm": "",
+    "unit_price": "",
+    "crawl_date": "2026-11-08"
+  }
+]

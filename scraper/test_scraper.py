@@ -2522,6 +2522,105 @@ class TestWalmartScraperRules(unittest.TestCase):
 
         if os.path.exists(test_dir): shutil.rmtree(test_dir)
 
+    def test_verify_live_gates_rejects_fixtures_and_blocked_captures(self):
+        from verify_live_gates import evaluate_live_artifacts
+
+        res = evaluate_live_artifacts(
+            ndjson_text=json.dumps({
+                "message": "Page 1 yielded 2 new unique records (category total: 2) OFFLINE_SPECIFICATION_FIXTURE"
+            }),
+            raw_evidence_text=json.dumps({
+                "endpoint": "https://www.walmart.com/blocked",
+                "request": {"url": "https://www.walmart.com/blocked"},
+                "payload": {"title": "Robot or human?"},
+            }),
+        )
+        by_id = {g["id"]: g["status"] for g in res["gates"]}
+        self.assertEqual(by_id["pagination"], "PASSED")
+        self.assertEqual(by_id["coverage"], "PENDING")
+        self.assertEqual(by_id["pickup_pricing"], "PENDING")
+        self.assertEqual(by_id["recovery"], "PENDING")
+        self.assertEqual(by_id["azure"], "PENDING")
+        self.assertFalse(res["hasVerifiedLiveUpdates"])
+        self.assertTrue(len(res["rejectedReasons"]) >= 2)
+
+    def test_verify_live_gates_promotes_verified_live_artifacts(self):
+        import shutil
+        from verify_live_gates import scan_workspace_and_write_status
+
+        tmp_root = ".staging_reg_gate_verify"
+        if os.path.exists(tmp_root):
+            shutil.rmtree(tmp_root)
+        out_dir = os.path.join(tmp_root, "output")
+        stg_dir = os.path.join(tmp_root, ".staging")
+        os.makedirs(out_dir, exist_ok=True)
+        os.makedirs(stg_dir, exist_ok=True)
+
+        ndjson_path = os.path.join(tmp_root, "run.ndjson")
+        with open(ndjson_path, "w", encoding="utf-8") as f:
+            for msg in [
+                "Page 1 yielded 24 new unique records (category total: 24)",
+                "[INTERRUPTION SIGNAL] Received SIGNAL_15; halting safely.",
+                "[PROTECTION ACTIVE] Run interrupted (SIGNAL_15); previous committed delivery preserved intact.",
+                "[CHECKPOINT RESUME] Resuming category 'Water' from page 2 (prior staged items: 24)",
+                "Page 2 yielded 20 new unique records (category total: 44)",
+                "[ATOMIC PUBLISH] Promoted staging release r1 -> output/publication_manifest_4012.json",
+                "[AZURE BLOB PUBLISHED] Release r1 uploaded to container 'walmart-scraper-data' (output/publication_manifest_4012.json)",
+            ]:
+                f.write(json.dumps({"message": msg}) + "\n")
+
+        raw_path = os.path.join(stg_dir, "raw_evidence_4012_2026-11-13.jsonl")
+        with open(raw_path, "w", encoding="utf-8") as f:
+            f.write(json.dumps({
+                "endpoint": "https://www.walmart.com/browse/beverages/water/1#__NEXT_DATA__",
+                "request": {"url": "https://www.walmart.com/browse/beverages/water/1", "method": "GET"},
+                "payload": {
+                    "props": {
+                        "pageProps": {
+                            "locationContext": {"intent": "PICKUP", "pickupStore": {"storeId": "4012"}},
+                            "initialData": {
+                                "searchResult": {
+                                    "storeId": "4012",
+                                    "fulfillmentMode": "PICKUP",
+                                    "itemStacks": [{"items": [{"usItemId": "101", "priceInfo": {"currentPrice": {"priceString": "$5.98"}}}]}],
+                                }
+                            },
+                        }
+                    }
+                },
+            }) + "\n")
+
+        with open(os.path.join(out_dir, "publication_manifest_4012.json"), "w", encoding="utf-8") as f:
+            json.dump({
+                "status": "COMMITTED",
+                "store_number": "4012",
+                "crawl_date": "2026-11-13",
+                "total_records": 524,
+                "products_sha256": "abc123def4567890",
+                "azure_container": "walmart-scraper-data",
+                "azure_products_blob": "releases/r1/walmart_4012_2026-11-13.json",
+                "azure_evidence_blob": "releases/r1/raw_evidence_4012_2026-11-13.jsonl",
+            }, f)
+
+        status_out = os.path.join(tmp_root, "live_gate_status.json")
+        res = scan_workspace_and_write_status(
+            output_dir=out_dir,
+            staging_dir=stg_dir,
+            ndjson_path=ndjson_path,
+            status_output_path=status_out,
+        )
+        self.assertTrue(os.path.exists(status_out))
+        by_id = {g["id"]: g["status"] for g in res["gates"]}
+        self.assertEqual(by_id["pagination"], "PASSED")
+        self.assertEqual(by_id["coverage"], "PASSED")
+        self.assertEqual(by_id["pickup_pricing"], "PASSED")
+        self.assertEqual(by_id["recovery"], "PASSED")
+        self.assertEqual(by_id["azure"], "PASSED")
+        self.assertTrue(res["hasVerifiedLiveUpdates"])
+
+        if os.path.exists(tmp_root):
+            shutil.rmtree(tmp_root)
+
 # Controlled Mock Classes for Playwright Integration Tests
 class ControlledMockElement:
     def __init__(self, tag="div", attrs=None, text="", children=None):
