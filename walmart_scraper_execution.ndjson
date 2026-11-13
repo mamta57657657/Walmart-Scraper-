@@ -1411,3 +1411,552 @@
 {"timestamp": "2026-11-11T04:09:16.870285Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 1 new unique records (category total: 1)"}
 {"timestamp": "2026-11-11T04:09:16.871138Z", "level": "ERROR", "logger": "WalmartScraper", "message": "[AMBIGUOUS PAGINATION INCOMPLETE] Next selector missing on page 1 (1 containers) for route 'Beverages > Water' without explicit terminal/total evidence (No explicit terminal indicator or matching total results evidence found). A short page is not proof of exhaustion. Route remains incomplete."}
 {"timestamp": "2026-11-11T04:09:16.871510Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[ROUTE UNRESOLVED] Route 'Beverages > Water' remained incomplete (route_failed=True, natural_completion=False). Preserving in failed_routes."}
+{"timestamp": "2026-11-13T04:41:44.760993Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Soft Drinks] starting from https://walmart.com/cp/soda"}
+{"timestamp": "2026-11-13T04:41:44.761301Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Soft Drinks' from page 1"}
+{"timestamp": "2026-11-13T04:41:44.761501Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Soft Drinks (attempt 1)..."}
+{"timestamp": "2026-11-13T04:41:46.365983Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 1 product containers"}
+{"timestamp": "2026-11-13T04:41:46.367396Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 1 new unique records (category total: 1)"}
+{"timestamp": "2026-11-13T04:41:46.368368Z", "level": "ERROR", "logger": "WalmartScraper", "message": "[AMBIGUOUS PAGINATION INCOMPLETE] Next selector missing on page 1 (1 containers) for route 'Beverages > Soft Drinks' without explicit terminal/total evidence (No explicit terminal indicator or matching total results evidence found). A short page is not proof of exhaustion. Route remains incomplete."}
+{"timestamp": "2026-11-13T04:41:46.369308Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[ROUTE UNRESOLVED] Route 'Beverages > Soft Drinks' remained incomplete (route_failed=True, natural_completion=False). Preserving in failed_routes."}
+{"timestamp": "2026-11-13T04:41:46.369508Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Pantry > Pasta] starting from https://walmart.com/cp/pasta"}
+{"timestamp": "2026-11-13T04:41:46.369771Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Pasta (attempt 1)..."}
+{"timestamp": "2026-11-13T04:41:47.972956Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 1 product containers"}
+{"timestamp": "2026-11-13T04:41:47.973451Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 1 new unique records (category total: 1)"}
+{"timestamp": "2026-11-13T04:41:47.976625Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 1 for 'Pasta' (Category pagination Next button disabled). Total category yield: 1"}
+{"timestamp": "2026-11-13T04:41:47.979633Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Soft Drinks] starting from https://walmart.com/cp/soda"}
+{"timestamp": "2026-11-13T04:41:47.979833Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Soft Drinks' from page 1"}
+{"timestamp": "2026-11-13T04:41:47.980026Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Soft Drinks (attempt 1)..."}
+{"timestamp": "2026-11-13T04:41:49.583902Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 1 product containers"}
+{"timestamp": "2026-11-13T04:41:49.584738Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 0 newly deduplicated items (containers: 1). Continuing."}
+{"timestamp": "2026-11-13T04:41:49.586487Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 1 for 'Soft Drinks' (Category pagination Next button disabled). Total category yield: 0"}
+{"timestamp": "2026-11-13T04:41:49.618403Z", "level": "INFO", "logger": "WalmartScraper", "message": "Starting scraper run for Store #4012 (1234 Main St, Dallas, TX 75201) on 2026-11-08"}
+{"timestamp": "2026-11-13T04:41:49.618881Z", "level": "INFO", "logger": "WalmartScraper", "message": "[STORE LOCK] Injecting store affinity cookies for Store #4012 (ZIP: 75001)..."}
+{"timestamp": "2026-11-13T04:41:49.620186Z", "level": "INFO", "logger": "WalmartScraper", "message": "[FULFILLMENT CONFIRMED] Store #4012 (1234 Main St, Dallas, TX 75201) and PICKUP mode affirmatively observed in retailer network response."}
+{"timestamp": "2026-11-13T04:41:49.620432Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loaded 2 category/subcategory endpoints."}
+{"timestamp": "2026-11-13T04:41:49.620570Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/cp/water"}
+{"timestamp": "2026-11-13T04:41:49.620765Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:41:49.621611Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 1 product containers"}
+{"timestamp": "2026-11-13T04:41:49.621841Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[PRICE DISAGREEMENT CONFLICT] Item 101 displayed price '$16.92' disagrees with source offer '$5.98'. Disqualifying local price."}
+{"timestamp": "2026-11-13T04:41:49.622053Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 1 new unique records (category total: 1)"}
+{"timestamp": "2026-11-13T04:41:49.622799Z", "level": "ERROR", "logger": "WalmartScraper", "message": "[AMBIGUOUS PAGINATION INCOMPLETE] Next selector missing on page 1 (1 containers) for route 'Beverages > Water' without explicit terminal/total evidence (No explicit terminal indicator or matching total results evidence found). A short page is not proof of exhaustion. Route remains incomplete."}
+{"timestamp": "2026-11-13T04:41:49.623258Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[ROUTE UNRESOLVED] Route 'Beverages > Water' remained incomplete (route_failed=True, natural_completion=False). Preserving in failed_routes."}
+{"timestamp": "2026-11-13T04:41:49.623376Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Soft Drinks] starting from https://www.walmart.com/cp/soda"}
+{"timestamp": "2026-11-13T04:41:49.623928Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Soft Drinks (attempt 1)..."}
+{"timestamp": "2026-11-13T04:41:49.624347Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 1 product containers"}
+{"timestamp": "2026-11-13T04:41:49.624517Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[PRICE DISAGREEMENT CONFLICT] Item 201 displayed price '$1212.00' disagrees with source offer '$6.48'. Disqualifying local price."}
+{"timestamp": "2026-11-13T04:41:49.624650Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 1 new unique records (category total: 1)"}
+{"timestamp": "2026-11-13T04:41:49.625371Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 1 for 'Soft Drinks' (Category pagination Next button disabled). Total category yield: 1"}
+{"timestamp": "2026-11-13T04:41:49.631886Z", "level": "INFO", "logger": "WalmartScraper", "message": "Starting scraper run for Store #4012 (1234 Main St, Dallas, TX 75201) on 2026-11-08"}
+{"timestamp": "2026-11-13T04:41:49.632114Z", "level": "INFO", "logger": "WalmartScraper", "message": "[STORE LOCK] Injecting store affinity cookies for Store #4012 (ZIP: 75001)..."}
+{"timestamp": "2026-11-13T04:41:49.632468Z", "level": "INFO", "logger": "WalmartScraper", "message": "[FULFILLMENT CONFIRMED] Store #4012 (1234 Main St, Dallas, TX 75201) and PICKUP mode affirmatively observed in retailer network response."}
+{"timestamp": "2026-11-13T04:41:49.632676Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loaded 2 category/subcategory endpoints."}
+{"timestamp": "2026-11-13T04:41:49.632783Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/cp/water"}
+{"timestamp": "2026-11-13T04:41:49.632850Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Water' from page 1"}
+{"timestamp": "2026-11-13T04:41:49.632975Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:41:49.633314Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 1 product containers"}
+{"timestamp": "2026-11-13T04:41:49.633479Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[PRICE DISAGREEMENT CONFLICT] Item 101 displayed price '$16.92' disagrees with source offer '$5.98'. Disqualifying local price."}
+{"timestamp": "2026-11-13T04:41:49.633626Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 0 newly deduplicated items (containers: 1). Continuing."}
+{"timestamp": "2026-11-13T04:41:49.634199Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 1 for 'Water' (Category pagination Next button disabled). Total category yield: 0"}
+{"timestamp": "2026-11-13T04:41:49.634628Z", "level": "INFO", "logger": "WalmartScraper", "message": "[RESUME SKIP] Route 'Beverages > Soft Drinks' already durably completed (1 items)."}
+{"timestamp": "2026-11-13T04:41:49.639229Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/cp/water"}
+{"timestamp": "2026-11-13T04:41:49.640388Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Water' from page 1"}
+{"timestamp": "2026-11-13T04:41:49.640808Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:41:51.244197Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 2 product containers"}
+{"timestamp": "2026-11-13T04:41:51.244648Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 2 new unique records (category total: 2)"}
+{"timestamp": "2026-11-13T04:41:51.245443Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 1 for 'Water' (Category pagination Next button disabled). Total category yield: 2"}
+{"timestamp": "2026-11-13T04:41:51.247316Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Juices] starting from https://www.walmart.com/cp/juice"}
+{"timestamp": "2026-11-13T04:41:51.247440Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Juices' from page 1"}
+{"timestamp": "2026-11-13T04:41:51.247591Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Juices (attempt 1)..."}
+{"timestamp": "2026-11-13T04:41:52.853367Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 3 product containers"}
+{"timestamp": "2026-11-13T04:41:52.854045Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 3 new unique records (category total: 3)"}
+{"timestamp": "2026-11-13T04:41:52.855054Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed single-page category for 'Juices' verified by explicit source terminal evidence: Explicit pagination terminal indicator confirmed (page 1 of 1): 'Page 1 of 1'. Total yield: 3"}
+{"timestamp": "2026-11-13T04:41:52.855570Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Cider] starting from https://www.walmart.com/cp/cider"}
+{"timestamp": "2026-11-13T04:41:52.855802Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Cider (attempt 1)..."}
+{"timestamp": "2026-11-13T04:41:54.459107Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 3 product containers"}
+{"timestamp": "2026-11-13T04:41:54.459836Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 3 new unique records (category total: 3)"}
+{"timestamp": "2026-11-13T04:41:54.462920Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 1 for 'Cider' (Category pagination Next button disabled). Total category yield: 3"}
+{"timestamp": "2026-11-13T04:41:54.468307Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Coffee] starting from https://www.walmart.com/cp/coffee"}
+{"timestamp": "2026-11-13T04:41:54.468687Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Coffee' from page 1"}
+{"timestamp": "2026-11-13T04:41:54.469160Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Coffee (attempt 1)..."}
+{"timestamp": "2026-11-13T04:41:56.072659Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 2 product containers"}
+{"timestamp": "2026-11-13T04:41:56.073234Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 2 new unique records (category total: 2)"}
+{"timestamp": "2026-11-13T04:41:56.074150Z", "level": "ERROR", "logger": "WalmartScraper", "message": "[AMBIGUOUS PAGINATION INCOMPLETE] Next selector missing on page 1 (2 containers) for route 'Beverages > Coffee' without explicit terminal/total evidence (Explicit pagination confirms active non-terminal page (1 of 10): 'Page 1 of 10'). A short page is not proof of exhaustion. Route remains incomplete."}
+{"timestamp": "2026-11-13T04:41:56.074516Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[ROUTE UNRESOLVED] Route 'Beverages > Coffee' remained incomplete (route_failed=True, natural_completion=False). Preserving in failed_routes."}
+{"timestamp": "2026-11-13T04:41:56.077019Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Tea] starting from https://www.walmart.com/cp/tea"}
+{"timestamp": "2026-11-13T04:41:56.077452Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Tea' from page 1"}
+{"timestamp": "2026-11-13T04:41:56.077792Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Tea (attempt 1)..."}
+{"timestamp": "2026-11-13T04:41:57.681615Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 2 product containers"}
+{"timestamp": "2026-11-13T04:41:57.682079Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 2 new unique records (category total: 2)"}
+{"timestamp": "2026-11-13T04:41:57.683223Z", "level": "ERROR", "logger": "WalmartScraper", "message": "[AMBIGUOUS PAGINATION INCOMPLETE] Next selector missing on page 1 (2 containers) for route 'Beverages > Tea' without explicit terminal/total evidence (No explicit terminal indicator or matching total results evidence found). A short page is not proof of exhaustion. Route remains incomplete."}
+{"timestamp": "2026-11-13T04:41:57.683790Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[ROUTE UNRESOLVED] Route 'Beverages > Tea' remained incomplete (route_failed=True, natural_completion=False). Preserving in failed_routes."}
+{"timestamp": "2026-11-13T04:41:57.686219Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/cp/water"}
+{"timestamp": "2026-11-13T04:41:57.686373Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Water' from page 2"}
+{"timestamp": "2026-11-13T04:41:57.686447Z", "level": "ERROR", "logger": "WalmartScraper", "message": "[RESUME BEYOND SAFETY CAP] Category 'Beverages > Water' resumed at page 2, which exceeds max_pages_per_category=1 without natural completion. Preserving unresolved route in failed_routes."}
+{"timestamp": "2026-11-13T04:41:57.686710Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[ROUTE UNRESOLVED] Route 'Beverages > Water' remained incomplete (route_failed=True, natural_completion=False). Preserving in failed_routes."}
+{"timestamp": "2026-11-13T04:41:57.687919Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/cp/water"}
+{"timestamp": "2026-11-13T04:41:57.688026Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Water' from page 1"}
+{"timestamp": "2026-11-13T04:41:57.689158Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:41:59.292800Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 1 product containers"}
+{"timestamp": "2026-11-13T04:41:59.293308Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 1 new unique records (category total: 1)"}
+{"timestamp": "2026-11-13T04:41:59.294292Z", "level": "ERROR", "logger": "WalmartScraper", "message": "[AMBIGUOUS PAGINATION INCOMPLETE] Next selector missing on page 1 (1 containers) for route 'Beverages > Water' without explicit terminal/total evidence (No explicit terminal indicator or matching total results evidence found). A short page is not proof of exhaustion. Route remains incomplete."}
+{"timestamp": "2026-11-13T04:41:59.294744Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[ROUTE UNRESOLVED] Route 'Beverages > Water' remained incomplete (route_failed=True, natural_completion=False). Preserving in failed_routes."}
+{"timestamp": "2026-11-13T04:47:01.237350Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Soft Drinks] starting from https://walmart.com/cp/soda"}
+{"timestamp": "2026-11-13T04:47:01.237938Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Soft Drinks' from page 1 (prior staged items: 0)"}
+{"timestamp": "2026-11-13T04:47:01.238264Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Soft Drinks (attempt 1)..."}
+{"timestamp": "2026-11-13T04:47:02.843607Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 1 product containers"}
+{"timestamp": "2026-11-13T04:47:02.846036Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 1 new unique records (category total: 1)"}
+{"timestamp": "2026-11-13T04:47:02.848067Z", "level": "ERROR", "logger": "WalmartScraper", "message": "[AMBIGUOUS PAGINATION INCOMPLETE] Next selector missing on page 1 (1 containers) for route 'Beverages > Soft Drinks' without explicit terminal/total evidence (No explicit terminal indicator or matching total results evidence found). A short page is not proof of exhaustion. Route remains incomplete."}
+{"timestamp": "2026-11-13T04:47:02.848734Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[ROUTE UNRESOLVED] Route 'Beverages > Soft Drinks' remained incomplete (route_failed=True, natural_completion=False). Preserving in failed_routes."}
+{"timestamp": "2026-11-13T04:47:02.848898Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Pantry > Pasta] starting from https://walmart.com/cp/pasta"}
+{"timestamp": "2026-11-13T04:47:02.849105Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Pasta (attempt 1)..."}
+{"timestamp": "2026-11-13T04:47:04.453552Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 1 product containers"}
+{"timestamp": "2026-11-13T04:47:04.454725Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 1 new unique records (category total: 1)"}
+{"timestamp": "2026-11-13T04:47:04.457453Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 1 for 'Pasta' (Category pagination Next button disabled). Total category yield: 1"}
+{"timestamp": "2026-11-13T04:47:04.458879Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Soft Drinks] starting from https://walmart.com/cp/soda"}
+{"timestamp": "2026-11-13T04:47:04.459071Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Soft Drinks' from page 1 (prior staged items: 1)"}
+{"timestamp": "2026-11-13T04:47:04.459307Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Soft Drinks (attempt 1)..."}
+{"timestamp": "2026-11-13T04:47:06.062629Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 1 product containers"}
+{"timestamp": "2026-11-13T04:47:06.063095Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 0 newly deduplicated items (containers: 1). Continuing."}
+{"timestamp": "2026-11-13T04:47:06.064230Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 1 for 'Soft Drinks' (Category pagination Next button disabled). Total category yield: 1"}
+{"timestamp": "2026-11-13T04:47:06.090081Z", "level": "INFO", "logger": "WalmartScraper", "message": "Starting scraper run for Store #4012 (1234 Main St, Dallas, TX 75201) on 2026-11-08"}
+{"timestamp": "2026-11-13T04:47:06.092464Z", "level": "INFO", "logger": "WalmartScraper", "message": "[STORE LOCK] Injecting store affinity cookies for Store #4012 (ZIP: 75001)..."}
+{"timestamp": "2026-11-13T04:47:06.095253Z", "level": "INFO", "logger": "WalmartScraper", "message": "[FULFILLMENT CONFIRMED] Store #4012 (1234 Main St, Dallas, TX 75201) and PICKUP mode affirmatively observed in retailer network response."}
+{"timestamp": "2026-11-13T04:47:06.095539Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loaded 2 category/subcategory endpoints."}
+{"timestamp": "2026-11-13T04:47:06.095759Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/cp/water"}
+{"timestamp": "2026-11-13T04:47:06.097053Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:47:06.099765Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 1 product containers"}
+{"timestamp": "2026-11-13T04:47:06.100412Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[PRICE DISAGREEMENT CONFLICT] Item 101 displayed price '$16.92' disagrees with source offer '$5.98'. Disqualifying local price."}
+{"timestamp": "2026-11-13T04:47:06.101041Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 1 new unique records (category total: 1)"}
+{"timestamp": "2026-11-13T04:47:06.104680Z", "level": "ERROR", "logger": "WalmartScraper", "message": "[AMBIGUOUS PAGINATION INCOMPLETE] Next selector missing on page 1 (1 containers) for route 'Beverages > Water' without explicit terminal/total evidence (No explicit terminal indicator or matching total results evidence found). A short page is not proof of exhaustion. Route remains incomplete."}
+{"timestamp": "2026-11-13T04:47:06.105804Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[ROUTE UNRESOLVED] Route 'Beverages > Water' remained incomplete (route_failed=True, natural_completion=False). Preserving in failed_routes."}
+{"timestamp": "2026-11-13T04:47:06.105934Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Soft Drinks] starting from https://www.walmart.com/cp/soda"}
+{"timestamp": "2026-11-13T04:47:06.106106Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Soft Drinks (attempt 1)..."}
+{"timestamp": "2026-11-13T04:47:06.106494Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 1 product containers"}
+{"timestamp": "2026-11-13T04:47:06.106689Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[PRICE DISAGREEMENT CONFLICT] Item 201 displayed price '$1212.00' disagrees with source offer '$6.48'. Disqualifying local price."}
+{"timestamp": "2026-11-13T04:47:06.106801Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 1 new unique records (category total: 1)"}
+{"timestamp": "2026-11-13T04:47:06.107663Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 1 for 'Soft Drinks' (Category pagination Next button disabled). Total category yield: 1"}
+{"timestamp": "2026-11-13T04:47:06.114630Z", "level": "INFO", "logger": "WalmartScraper", "message": "Starting scraper run for Store #4012 (1234 Main St, Dallas, TX 75201) on 2026-11-08"}
+{"timestamp": "2026-11-13T04:47:06.115038Z", "level": "INFO", "logger": "WalmartScraper", "message": "[STORE LOCK] Injecting store affinity cookies for Store #4012 (ZIP: 75001)..."}
+{"timestamp": "2026-11-13T04:47:06.115477Z", "level": "INFO", "logger": "WalmartScraper", "message": "[FULFILLMENT CONFIRMED] Store #4012 (1234 Main St, Dallas, TX 75201) and PICKUP mode affirmatively observed in retailer network response."}
+{"timestamp": "2026-11-13T04:47:06.115729Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loaded 2 category/subcategory endpoints."}
+{"timestamp": "2026-11-13T04:47:06.115830Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/cp/water"}
+{"timestamp": "2026-11-13T04:47:06.115954Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Water' from page 1 (prior staged items: 1)"}
+{"timestamp": "2026-11-13T04:47:06.116092Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:47:06.116422Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 1 product containers"}
+{"timestamp": "2026-11-13T04:47:06.116576Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[PRICE DISAGREEMENT CONFLICT] Item 101 displayed price '$16.92' disagrees with source offer '$5.98'. Disqualifying local price."}
+{"timestamp": "2026-11-13T04:47:06.116919Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 0 newly deduplicated items (containers: 1). Continuing."}
+{"timestamp": "2026-11-13T04:47:06.118534Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 1 for 'Water' (Category pagination Next button disabled). Total category yield: 1"}
+{"timestamp": "2026-11-13T04:47:06.123322Z", "level": "INFO", "logger": "WalmartScraper", "message": "[RESUME SKIP] Route 'Beverages > Soft Drinks' already durably completed (1 items)."}
+{"timestamp": "2026-11-13T04:47:06.130291Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/cp/water"}
+{"timestamp": "2026-11-13T04:47:06.130524Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Water' from page 1 (prior staged items: 0)"}
+{"timestamp": "2026-11-13T04:47:06.130705Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:47:07.734293Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 2 product containers"}
+{"timestamp": "2026-11-13T04:47:07.734842Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 2 new unique records (category total: 2)"}
+{"timestamp": "2026-11-13T04:47:07.735880Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 1 for 'Water' (Category pagination Next button disabled). Total category yield: 2"}
+{"timestamp": "2026-11-13T04:47:07.741546Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/browse/pantry/water/976759_976782_1001438"}
+{"timestamp": "2026-11-13T04:47:07.741916Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:47:09.347003Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 2 product containers"}
+{"timestamp": "2026-11-13T04:47:09.351094Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 2 new unique records (category total: 2)"}
+{"timestamp": "2026-11-13T04:47:09.355428Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 2 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:47:10.960617Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 2 found 2 product containers"}
+{"timestamp": "2026-11-13T04:47:10.961388Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 2 yielded 2 new unique records (category total: 4)"}
+{"timestamp": "2026-11-13T04:47:10.963193Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 3 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:47:12.566184Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 3 found 2 product containers"}
+{"timestamp": "2026-11-13T04:47:12.567026Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 3 yielded 1 new unique records (category total: 5)"}
+{"timestamp": "2026-11-13T04:47:12.569474Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 3 for 'Water' (Category pagination Next button disabled). Total category yield: 5"}
+{"timestamp": "2026-11-13T04:47:12.573476Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Juices] starting from https://www.walmart.com/cp/juice"}
+{"timestamp": "2026-11-13T04:47:12.573711Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Juices' from page 1 (prior staged items: 0)"}
+{"timestamp": "2026-11-13T04:47:12.573995Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Juices (attempt 1)..."}
+{"timestamp": "2026-11-13T04:47:14.177208Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 3 product containers"}
+{"timestamp": "2026-11-13T04:47:14.179053Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 3 new unique records (category total: 3)"}
+{"timestamp": "2026-11-13T04:47:14.181218Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed single-page category for 'Juices' verified by explicit source terminal evidence: Explicit pagination terminal indicator confirmed (page 1 of 1): 'Page 1 of 1'. Total yield: 3"}
+{"timestamp": "2026-11-13T04:47:14.182576Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Cider] starting from https://www.walmart.com/cp/cider"}
+{"timestamp": "2026-11-13T04:47:14.183387Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Cider (attempt 1)..."}
+{"timestamp": "2026-11-13T04:47:15.787390Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 3 product containers"}
+{"timestamp": "2026-11-13T04:47:15.788896Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 3 new unique records (category total: 3)"}
+{"timestamp": "2026-11-13T04:47:15.791018Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 1 for 'Cider' (Category pagination Next button disabled). Total category yield: 3"}
+{"timestamp": "2026-11-13T04:47:15.793259Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Coffee] starting from https://www.walmart.com/cp/coffee"}
+{"timestamp": "2026-11-13T04:47:15.793426Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Coffee' from page 1 (prior staged items: 0)"}
+{"timestamp": "2026-11-13T04:47:15.793595Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Coffee (attempt 1)..."}
+{"timestamp": "2026-11-13T04:47:17.396468Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 2 product containers"}
+{"timestamp": "2026-11-13T04:47:17.397510Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 2 new unique records (category total: 2)"}
+{"timestamp": "2026-11-13T04:47:17.400931Z", "level": "ERROR", "logger": "WalmartScraper", "message": "[AMBIGUOUS PAGINATION INCOMPLETE] Next selector missing on page 1 (2 containers) for route 'Beverages > Coffee' without explicit terminal/total evidence (Explicit pagination confirms active non-terminal page (1 of 10): 'Page 1 of 10'). A short page is not proof of exhaustion. Route remains incomplete."}
+{"timestamp": "2026-11-13T04:47:17.405187Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[ROUTE UNRESOLVED] Route 'Beverages > Coffee' remained incomplete (route_failed=True, natural_completion=False). Preserving in failed_routes."}
+{"timestamp": "2026-11-13T04:47:17.413709Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Tea] starting from https://www.walmart.com/cp/tea"}
+{"timestamp": "2026-11-13T04:47:17.414238Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Tea' from page 1 (prior staged items: 0)"}
+{"timestamp": "2026-11-13T04:47:17.414587Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Tea (attempt 1)..."}
+{"timestamp": "2026-11-13T04:47:19.019224Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 2 product containers"}
+{"timestamp": "2026-11-13T04:47:19.020387Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 2 new unique records (category total: 2)"}
+{"timestamp": "2026-11-13T04:47:19.023090Z", "level": "ERROR", "logger": "WalmartScraper", "message": "[AMBIGUOUS PAGINATION INCOMPLETE] Next selector missing on page 1 (2 containers) for route 'Beverages > Tea' without explicit terminal/total evidence (No explicit terminal indicator or matching total results evidence found). A short page is not proof of exhaustion. Route remains incomplete."}
+{"timestamp": "2026-11-13T04:47:19.024337Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[ROUTE UNRESOLVED] Route 'Beverages > Tea' remained incomplete (route_failed=True, natural_completion=False). Preserving in failed_routes."}
+{"timestamp": "2026-11-13T04:47:19.028354Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/cp/water"}
+{"timestamp": "2026-11-13T04:47:19.028608Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Water' from page 2 (prior staged items: 0)"}
+{"timestamp": "2026-11-13T04:47:19.028722Z", "level": "ERROR", "logger": "WalmartScraper", "message": "[RESUME BEYOND SAFETY CAP] Category 'Beverages > Water' resumed at page 2, which exceeds max_pages_per_category=1 without natural completion. Preserving unresolved route in failed_routes."}
+{"timestamp": "2026-11-13T04:47:19.029761Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[ROUTE UNRESOLVED] Route 'Beverages > Water' remained incomplete (route_failed=True, natural_completion=False). Preserving in failed_routes."}
+{"timestamp": "2026-11-13T04:47:19.037052Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/cp/water"}
+{"timestamp": "2026-11-13T04:47:19.037879Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Water' from page 1 (prior staged items: 0)"}
+{"timestamp": "2026-11-13T04:47:19.039169Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:47:20.644820Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 1 product containers"}
+{"timestamp": "2026-11-13T04:47:20.646503Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 1 new unique records (category total: 1)"}
+{"timestamp": "2026-11-13T04:47:20.650391Z", "level": "ERROR", "logger": "WalmartScraper", "message": "[AMBIGUOUS PAGINATION INCOMPLETE] Next selector missing on page 1 (1 containers) for route 'Beverages > Water' without explicit terminal/total evidence (No explicit terminal indicator or matching total results evidence found). A short page is not proof of exhaustion. Route remains incomplete."}
+{"timestamp": "2026-11-13T04:47:20.654206Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[ROUTE UNRESOLVED] Route 'Beverages > Water' remained incomplete (route_failed=True, natural_completion=False). Preserving in failed_routes."}
+{"timestamp": "2026-11-13T04:47:20.662104Z", "level": "INFO", "logger": "WalmartScraper", "message": "[STORE LOCK] Injecting store affinity cookies for Store #4012 (ZIP: 75001)..."}
+{"timestamp": "2026-11-13T04:47:22.164921Z", "level": "INFO", "logger": "WalmartScraper", "message": "[FULFILLMENT CONFIRMED] Store #4012 (1234 Main St, Dallas, TX 75201) and PICKUP mode affirmatively observed in retailer network response."}
+{"timestamp": "2026-11-13T04:47:22.165119Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/browse/pantry/water/1"}
+{"timestamp": "2026-11-13T04:47:22.165289Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:47:23.771021Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 2 product containers"}
+{"timestamp": "2026-11-13T04:47:23.772354Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[PRICE DISAGREEMENT CONFLICT] Item 101 displayed price '$16.92' disagrees with source offer '$5.98'. Disqualifying local price."}
+{"timestamp": "2026-11-13T04:47:23.774995Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[PRICE DISAGREEMENT CONFLICT] Item 102 displayed price '$4016.90' disagrees with source offer '$5.36'. Disqualifying local price."}
+{"timestamp": "2026-11-13T04:47:23.779854Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 2 new unique records (category total: 2)"}
+{"timestamp": "2026-11-13T04:47:23.784731Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 1 for 'Water' (Category pagination Next button disabled). Total category yield: 2"}
+{"timestamp": "2026-11-13T04:47:23.837248Z", "level": "INFO", "logger": "WalmartScraper", "message": "Starting scraper run for Store #4012 (1234 Main St, Dallas, TX 75201) on 2026-11-08"}
+{"timestamp": "2026-11-13T04:47:23.837652Z", "level": "INFO", "logger": "WalmartScraper", "message": "[STORE LOCK] Injecting store affinity cookies for Store #4012 (ZIP: 75001)..."}
+{"timestamp": "2026-11-13T04:47:23.838885Z", "level": "INFO", "logger": "WalmartScraper", "message": "[FULFILLMENT CONFIRMED] Store #4012 (1234 Main St, Dallas, TX 75201) and PICKUP mode affirmatively observed in retailer network response."}
+{"timestamp": "2026-11-13T04:47:23.841016Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loaded 1 category/subcategory endpoints."}
+{"timestamp": "2026-11-13T04:47:23.841707Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/cp/water"}
+{"timestamp": "2026-11-13T04:47:23.842917Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:47:23.845253Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 1 product containers"}
+{"timestamp": "2026-11-13T04:47:23.845472Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[PRICE DISAGREEMENT CONFLICT] Item 101 displayed price '$24.00' disagrees with source offer '$5.98'. Disqualifying local price."}
+{"timestamp": "2026-11-13T04:47:23.845617Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 1 new unique records (category total: 1)"}
+{"timestamp": "2026-11-13T04:47:23.847914Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 1 for 'Water' (Category pagination Next button disabled). Total category yield: 1"}
+{"timestamp": "2026-11-13T04:47:23.855688Z", "level": "INFO", "logger": "WalmartScraper", "message": "Starting scraper run for Store #4012 (1234 Main St, Dallas, TX 75201) on 2026-11-09"}
+{"timestamp": "2026-11-13T04:47:23.856606Z", "level": "INFO", "logger": "WalmartScraper", "message": "[STORE LOCK] Injecting store affinity cookies for Store #4012 (ZIP: 75001)..."}
+{"timestamp": "2026-11-13T04:47:23.857400Z", "level": "INFO", "logger": "WalmartScraper", "message": "[FULFILLMENT CONFIRMED] Store #4012 (1234 Main St, Dallas, TX 75201) and PICKUP mode affirmatively observed in retailer network response."}
+{"timestamp": "2026-11-13T04:47:23.857757Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loaded 1 category/subcategory endpoints."}
+{"timestamp": "2026-11-13T04:47:23.857879Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/cp/water"}
+{"timestamp": "2026-11-13T04:47:23.858086Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:47:23.858194Z", "level": "WARNING", "logger": "WalmartScraper", "message": "Error loading https://www.walmart.com/cp/water?affinityOverride=store: Simulated mid-run network disconnect. Retrying..."}
+{"timestamp": "2026-11-13T04:47:23.858305Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 2)..."}
+{"timestamp": "2026-11-13T04:47:23.858400Z", "level": "WARNING", "logger": "WalmartScraper", "message": "Error loading https://www.walmart.com/cp/water?affinityOverride=store: Simulated mid-run network disconnect. Retrying..."}
+{"timestamp": "2026-11-13T04:47:23.860565Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 3)..."}
+{"timestamp": "2026-11-13T04:47:23.861165Z", "level": "WARNING", "logger": "WalmartScraper", "message": "Error loading https://www.walmart.com/cp/water?affinityOverride=store: Simulated mid-run network disconnect. Retrying..."}
+{"timestamp": "2026-11-13T04:47:23.862122Z", "level": "ERROR", "logger": "WalmartScraper", "message": "[ROUTE FAILURE] Failed to load page 1 after max retries for route 'Beverages > Water'."}
+{"timestamp": "2026-11-13T04:47:23.862838Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[ROUTE UNRESOLVED] Route 'Beverages > Water' remained incomplete (route_failed=True, natural_completion=False). Preserving in failed_routes."}
+{"timestamp": "2026-11-13T04:47:23.869225Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/cp/water"}
+{"timestamp": "2026-11-13T04:47:23.869707Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:47:25.472684Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 2 product containers"}
+{"timestamp": "2026-11-13T04:47:25.473469Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 2 new unique records (category total: 2)"}
+{"timestamp": "2026-11-13T04:47:25.475956Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 2 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:47:25.476105Z", "level": "WARNING", "logger": "WalmartScraper", "message": "Error loading https://www.walmart.com/cp/water?page=2&affinityOverride=store: Page 2 timeout. Retrying..."}
+{"timestamp": "2026-11-13T04:47:27.477884Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 2 for Water (attempt 2)..."}
+{"timestamp": "2026-11-13T04:47:27.478377Z", "level": "WARNING", "logger": "WalmartScraper", "message": "Error loading https://www.walmart.com/cp/water?page=2&affinityOverride=store: Page 2 timeout. Retrying..."}
+{"timestamp": "2026-11-13T04:47:31.479763Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 2 for Water (attempt 3)..."}
+{"timestamp": "2026-11-13T04:47:31.480770Z", "level": "WARNING", "logger": "WalmartScraper", "message": "Error loading https://www.walmart.com/cp/water?page=2&affinityOverride=store: Page 2 timeout. Retrying..."}
+{"timestamp": "2026-11-13T04:47:37.482482Z", "level": "ERROR", "logger": "WalmartScraper", "message": "[ROUTE FAILURE] Failed to load page 2 after max retries for route 'Beverages > Water'."}
+{"timestamp": "2026-11-13T04:47:37.485712Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[ROUTE UNRESOLVED] Route 'Beverages > Water' remained incomplete (route_failed=True, natural_completion=False). Preserving in failed_routes."}
+{"timestamp": "2026-11-13T04:47:37.486996Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/cp/water"}
+{"timestamp": "2026-11-13T04:47:37.487187Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Water' from page 2 (prior staged items: 2)"}
+{"timestamp": "2026-11-13T04:47:37.487393Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 2 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:47:39.092949Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 2 found 1 product containers"}
+{"timestamp": "2026-11-13T04:47:39.094629Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 2 yielded 1 new unique records (category total: 3)"}
+{"timestamp": "2026-11-13T04:47:39.097273Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 2 for 'Water' (Category pagination Next button disabled). Total category yield: 3"}
+{"timestamp": "2026-11-13T04:48:43.371670Z", "level": "INFO", "logger": "WalmartScraper", "message": "[STORE LOCK] Injecting store affinity cookies for Store #4012 (ZIP: 75001)..."}
+{"timestamp": "2026-11-13T04:48:44.874612Z", "level": "INFO", "logger": "WalmartScraper", "message": "[FULFILLMENT CONFIRMED] Store #4012 (1234 Main St, Dallas, TX 75201) and PICKUP mode affirmatively observed in retailer network response."}
+{"timestamp": "2026-11-13T04:48:44.874831Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/browse/pantry/water/1"}
+{"timestamp": "2026-11-13T04:48:44.875042Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:48:46.479121Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 2 product containers"}
+{"timestamp": "2026-11-13T04:48:46.480066Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[PRICE DISAGREEMENT CONFLICT] Item 101 displayed price '$16.92' disagrees with source offer '$5.98'. Disqualifying local price."}
+{"timestamp": "2026-11-13T04:48:46.480271Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[PRICE DISAGREEMENT CONFLICT] Item 102 displayed price '$4016.90' disagrees with source offer '$5.36'. Disqualifying local price."}
+{"timestamp": "2026-11-13T04:48:46.480392Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 2 new unique records (category total: 2)"}
+{"timestamp": "2026-11-13T04:48:46.482373Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 1 for 'Water' (Category pagination Next button disabled). Total category yield: 2"}
+{"timestamp": "2026-11-13T04:49:14.145468Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Soft Drinks] starting from https://walmart.com/cp/soda"}
+{"timestamp": "2026-11-13T04:49:14.145644Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Soft Drinks' from page 1 (prior staged items: 0)"}
+{"timestamp": "2026-11-13T04:49:14.145812Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Soft Drinks (attempt 1)..."}
+{"timestamp": "2026-11-13T04:49:15.751080Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 1 product containers"}
+{"timestamp": "2026-11-13T04:49:15.761198Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 1 new unique records (category total: 1)"}
+{"timestamp": "2026-11-13T04:49:15.765560Z", "level": "ERROR", "logger": "WalmartScraper", "message": "[AMBIGUOUS PAGINATION INCOMPLETE] Next selector missing on page 1 (1 containers) for route 'Beverages > Soft Drinks' without explicit terminal/total evidence (No explicit terminal indicator or matching total results evidence found). A short page is not proof of exhaustion. Route remains incomplete."}
+{"timestamp": "2026-11-13T04:49:15.767377Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[ROUTE UNRESOLVED] Route 'Beverages > Soft Drinks' remained incomplete (route_failed=True, natural_completion=False). Preserving in failed_routes."}
+{"timestamp": "2026-11-13T04:49:15.767510Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Pantry > Pasta] starting from https://walmart.com/cp/pasta"}
+{"timestamp": "2026-11-13T04:49:15.767670Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Pasta (attempt 1)..."}
+{"timestamp": "2026-11-13T04:49:17.370564Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 1 product containers"}
+{"timestamp": "2026-11-13T04:49:17.371949Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 1 new unique records (category total: 1)"}
+{"timestamp": "2026-11-13T04:49:17.373539Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 1 for 'Pasta' (Category pagination Next button disabled). Total category yield: 1"}
+{"timestamp": "2026-11-13T04:49:17.376133Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Soft Drinks] starting from https://walmart.com/cp/soda"}
+{"timestamp": "2026-11-13T04:49:17.376808Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Soft Drinks' from page 1 (prior staged items: 1)"}
+{"timestamp": "2026-11-13T04:49:17.377050Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Soft Drinks (attempt 1)..."}
+{"timestamp": "2026-11-13T04:49:18.982394Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 1 product containers"}
+{"timestamp": "2026-11-13T04:49:18.983223Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 0 newly deduplicated items (containers: 1). Continuing."}
+{"timestamp": "2026-11-13T04:49:18.985398Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 1 for 'Soft Drinks' (Category pagination Next button disabled). Total category yield: 1"}
+{"timestamp": "2026-11-13T04:49:19.014507Z", "level": "INFO", "logger": "WalmartScraper", "message": "Starting scraper run for Store #4012 (1234 Main St, Dallas, TX 75201) on 2026-11-08"}
+{"timestamp": "2026-11-13T04:49:19.015605Z", "level": "INFO", "logger": "WalmartScraper", "message": "[STORE LOCK] Injecting store affinity cookies for Store #4012 (ZIP: 75001)..."}
+{"timestamp": "2026-11-13T04:49:19.020479Z", "level": "INFO", "logger": "WalmartScraper", "message": "[FULFILLMENT CONFIRMED] Store #4012 (1234 Main St, Dallas, TX 75201) and PICKUP mode affirmatively observed in retailer network response."}
+{"timestamp": "2026-11-13T04:49:19.020997Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loaded 2 category/subcategory endpoints."}
+{"timestamp": "2026-11-13T04:49:19.021103Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/cp/water"}
+{"timestamp": "2026-11-13T04:49:19.021304Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:49:19.022528Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 1 product containers"}
+{"timestamp": "2026-11-13T04:49:19.023420Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[MISSING SOURCE OFFER] Item 101 has no observed source offer price. Disqualifying local price."}
+{"timestamp": "2026-11-13T04:49:19.023761Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 1 new unique records (category total: 1)"}
+{"timestamp": "2026-11-13T04:49:19.024678Z", "level": "ERROR", "logger": "WalmartScraper", "message": "[AMBIGUOUS PAGINATION INCOMPLETE] Next selector missing on page 1 (1 containers) for route 'Beverages > Water' without explicit terminal/total evidence (No explicit terminal indicator or matching total results evidence found). A short page is not proof of exhaustion. Route remains incomplete."}
+{"timestamp": "2026-11-13T04:49:19.025904Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[ROUTE UNRESOLVED] Route 'Beverages > Water' remained incomplete (route_failed=True, natural_completion=False). Preserving in failed_routes."}
+{"timestamp": "2026-11-13T04:49:19.026111Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Soft Drinks] starting from https://www.walmart.com/cp/soda"}
+{"timestamp": "2026-11-13T04:49:19.026352Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Soft Drinks (attempt 1)..."}
+{"timestamp": "2026-11-13T04:49:19.026799Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 1 product containers"}
+{"timestamp": "2026-11-13T04:49:19.026951Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[MISSING SOURCE OFFER] Item 201 has no observed source offer price. Disqualifying local price."}
+{"timestamp": "2026-11-13T04:49:19.027100Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 1 new unique records (category total: 1)"}
+{"timestamp": "2026-11-13T04:49:19.028680Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 1 for 'Soft Drinks' (Category pagination Next button disabled). Total category yield: 1"}
+{"timestamp": "2026-11-13T04:49:19.036726Z", "level": "INFO", "logger": "WalmartScraper", "message": "Starting scraper run for Store #4012 (1234 Main St, Dallas, TX 75201) on 2026-11-08"}
+{"timestamp": "2026-11-13T04:49:19.037100Z", "level": "INFO", "logger": "WalmartScraper", "message": "[STORE LOCK] Injecting store affinity cookies for Store #4012 (ZIP: 75001)..."}
+{"timestamp": "2026-11-13T04:49:19.039576Z", "level": "INFO", "logger": "WalmartScraper", "message": "[FULFILLMENT CONFIRMED] Store #4012 (1234 Main St, Dallas, TX 75201) and PICKUP mode affirmatively observed in retailer network response."}
+{"timestamp": "2026-11-13T04:49:19.040211Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loaded 2 category/subcategory endpoints."}
+{"timestamp": "2026-11-13T04:49:19.040450Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/cp/water"}
+{"timestamp": "2026-11-13T04:49:19.040743Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Water' from page 1 (prior staged items: 1)"}
+{"timestamp": "2026-11-13T04:49:19.040952Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:49:19.042437Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 1 product containers"}
+{"timestamp": "2026-11-13T04:49:19.042963Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[MISSING SOURCE OFFER] Item 101 has no observed source offer price. Disqualifying local price."}
+{"timestamp": "2026-11-13T04:49:19.044210Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 0 newly deduplicated items (containers: 1). Continuing."}
+{"timestamp": "2026-11-13T04:49:19.045596Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 1 for 'Water' (Category pagination Next button disabled). Total category yield: 1"}
+{"timestamp": "2026-11-13T04:49:19.046769Z", "level": "INFO", "logger": "WalmartScraper", "message": "[RESUME SKIP] Route 'Beverages > Soft Drinks' already durably completed (1 items)."}
+{"timestamp": "2026-11-13T04:49:19.055149Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/cp/water"}
+{"timestamp": "2026-11-13T04:49:19.055372Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Water' from page 1 (prior staged items: 0)"}
+{"timestamp": "2026-11-13T04:49:19.055523Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:49:20.659259Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 2 product containers"}
+{"timestamp": "2026-11-13T04:49:20.660761Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 2 new unique records (category total: 2)"}
+{"timestamp": "2026-11-13T04:49:20.662653Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 1 for 'Water' (Category pagination Next button disabled). Total category yield: 2"}
+{"timestamp": "2026-11-13T04:49:20.670943Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/browse/pantry/water/976759_976782_1001438"}
+{"timestamp": "2026-11-13T04:49:20.671368Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:49:22.274834Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 2 product containers"}
+{"timestamp": "2026-11-13T04:49:22.276140Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 2 new unique records (category total: 2)"}
+{"timestamp": "2026-11-13T04:49:22.277847Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 2 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:49:23.882565Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 2 found 2 product containers"}
+{"timestamp": "2026-11-13T04:49:23.887454Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 2 yielded 2 new unique records (category total: 4)"}
+{"timestamp": "2026-11-13T04:49:23.893447Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 3 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:49:25.497232Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 3 found 2 product containers"}
+{"timestamp": "2026-11-13T04:49:25.498026Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 3 yielded 1 new unique records (category total: 5)"}
+{"timestamp": "2026-11-13T04:49:25.499459Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 3 for 'Water' (Category pagination Next button disabled). Total category yield: 5"}
+{"timestamp": "2026-11-13T04:49:25.503326Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Juices] starting from https://www.walmart.com/cp/juice"}
+{"timestamp": "2026-11-13T04:49:25.503529Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Juices' from page 1 (prior staged items: 0)"}
+{"timestamp": "2026-11-13T04:49:25.503748Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Juices (attempt 1)..."}
+{"timestamp": "2026-11-13T04:49:27.108049Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 3 product containers"}
+{"timestamp": "2026-11-13T04:49:27.108663Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 3 new unique records (category total: 3)"}
+{"timestamp": "2026-11-13T04:49:27.109797Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed single-page category for 'Juices' verified by explicit source terminal evidence: Explicit pagination terminal indicator confirmed (page 1 of 1): 'Page 1 of 1'. Total yield: 3"}
+{"timestamp": "2026-11-13T04:49:27.110411Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Cider] starting from https://www.walmart.com/cp/cider"}
+{"timestamp": "2026-11-13T04:49:27.110599Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Cider (attempt 1)..."}
+{"timestamp": "2026-11-13T04:49:28.714115Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 3 product containers"}
+{"timestamp": "2026-11-13T04:49:28.715011Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 3 new unique records (category total: 3)"}
+{"timestamp": "2026-11-13T04:49:28.716611Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 1 for 'Cider' (Category pagination Next button disabled). Total category yield: 3"}
+{"timestamp": "2026-11-13T04:49:28.720492Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Coffee] starting from https://www.walmart.com/cp/coffee"}
+{"timestamp": "2026-11-13T04:49:28.720649Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Coffee' from page 1 (prior staged items: 0)"}
+{"timestamp": "2026-11-13T04:49:28.720824Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Coffee (attempt 1)..."}
+{"timestamp": "2026-11-13T04:49:30.324917Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 2 product containers"}
+{"timestamp": "2026-11-13T04:49:30.325918Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 2 new unique records (category total: 2)"}
+{"timestamp": "2026-11-13T04:49:30.330032Z", "level": "ERROR", "logger": "WalmartScraper", "message": "[AMBIGUOUS PAGINATION INCOMPLETE] Next selector missing on page 1 (2 containers) for route 'Beverages > Coffee' without explicit terminal/total evidence (Explicit pagination confirms active non-terminal page (1 of 10): 'Page 1 of 10'). A short page is not proof of exhaustion. Route remains incomplete."}
+{"timestamp": "2026-11-13T04:49:30.330680Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[ROUTE UNRESOLVED] Route 'Beverages > Coffee' remained incomplete (route_failed=True, natural_completion=False). Preserving in failed_routes."}
+{"timestamp": "2026-11-13T04:49:30.333858Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Tea] starting from https://www.walmart.com/cp/tea"}
+{"timestamp": "2026-11-13T04:49:30.334398Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Tea' from page 1 (prior staged items: 0)"}
+{"timestamp": "2026-11-13T04:49:30.334776Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Tea (attempt 1)..."}
+{"timestamp": "2026-11-13T04:49:31.937811Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 2 product containers"}
+{"timestamp": "2026-11-13T04:49:31.938923Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 2 new unique records (category total: 2)"}
+{"timestamp": "2026-11-13T04:49:31.939991Z", "level": "ERROR", "logger": "WalmartScraper", "message": "[AMBIGUOUS PAGINATION INCOMPLETE] Next selector missing on page 1 (2 containers) for route 'Beverages > Tea' without explicit terminal/total evidence (No explicit terminal indicator or matching total results evidence found). A short page is not proof of exhaustion. Route remains incomplete."}
+{"timestamp": "2026-11-13T04:49:31.940701Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[ROUTE UNRESOLVED] Route 'Beverages > Tea' remained incomplete (route_failed=True, natural_completion=False). Preserving in failed_routes."}
+{"timestamp": "2026-11-13T04:49:31.942534Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/cp/water"}
+{"timestamp": "2026-11-13T04:49:31.942673Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Water' from page 2 (prior staged items: 0)"}
+{"timestamp": "2026-11-13T04:49:31.942768Z", "level": "ERROR", "logger": "WalmartScraper", "message": "[RESUME BEYOND SAFETY CAP] Category 'Beverages > Water' resumed at page 2, which exceeds max_pages_per_category=1 without natural completion. Preserving unresolved route in failed_routes."}
+{"timestamp": "2026-11-13T04:49:31.943082Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[ROUTE UNRESOLVED] Route 'Beverages > Water' remained incomplete (route_failed=True, natural_completion=False). Preserving in failed_routes."}
+{"timestamp": "2026-11-13T04:49:31.944075Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/cp/water"}
+{"timestamp": "2026-11-13T04:49:31.944201Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Water' from page 1 (prior staged items: 0)"}
+{"timestamp": "2026-11-13T04:49:31.944329Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:49:33.547789Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 1 product containers"}
+{"timestamp": "2026-11-13T04:49:33.548867Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 1 new unique records (category total: 1)"}
+{"timestamp": "2026-11-13T04:49:33.550242Z", "level": "ERROR", "logger": "WalmartScraper", "message": "[AMBIGUOUS PAGINATION INCOMPLETE] Next selector missing on page 1 (1 containers) for route 'Beverages > Water' without explicit terminal/total evidence (No explicit terminal indicator or matching total results evidence found). A short page is not proof of exhaustion. Route remains incomplete."}
+{"timestamp": "2026-11-13T04:49:33.550912Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[ROUTE UNRESOLVED] Route 'Beverages > Water' remained incomplete (route_failed=True, natural_completion=False). Preserving in failed_routes."}
+{"timestamp": "2026-11-13T04:49:33.553922Z", "level": "INFO", "logger": "WalmartScraper", "message": "[STORE LOCK] Injecting store affinity cookies for Store #4012 (ZIP: 75001)..."}
+{"timestamp": "2026-11-13T04:49:35.056486Z", "level": "INFO", "logger": "WalmartScraper", "message": "[FULFILLMENT CONFIRMED] Store #4012 (1234 Main St, Dallas, TX 75201) and PICKUP mode affirmatively observed in retailer network response."}
+{"timestamp": "2026-11-13T04:49:35.056730Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/browse/pantry/water/1"}
+{"timestamp": "2026-11-13T04:49:35.056916Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:49:36.660034Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 2 product containers"}
+{"timestamp": "2026-11-13T04:49:36.661457Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 2 new unique records (category total: 2)"}
+{"timestamp": "2026-11-13T04:49:36.663358Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 1 for 'Water' (Category pagination Next button disabled). Total category yield: 2"}
+{"timestamp": "2026-11-13T04:49:36.682567Z", "level": "INFO", "logger": "WalmartScraper", "message": "Starting scraper run for Store #4012 (1234 Main St, Dallas, TX 75201) on 2026-11-08"}
+{"timestamp": "2026-11-13T04:49:36.682939Z", "level": "INFO", "logger": "WalmartScraper", "message": "[STORE LOCK] Injecting store affinity cookies for Store #4012 (ZIP: 75001)..."}
+{"timestamp": "2026-11-13T04:49:36.683444Z", "level": "INFO", "logger": "WalmartScraper", "message": "[FULFILLMENT CONFIRMED] Store #4012 (1234 Main St, Dallas, TX 75201) and PICKUP mode affirmatively observed in retailer network response."}
+{"timestamp": "2026-11-13T04:49:36.683834Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loaded 1 category/subcategory endpoints."}
+{"timestamp": "2026-11-13T04:49:36.683920Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/cp/water"}
+{"timestamp": "2026-11-13T04:49:36.684050Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:49:36.684441Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 1 product containers"}
+{"timestamp": "2026-11-13T04:49:36.684691Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 1 new unique records (category total: 1)"}
+{"timestamp": "2026-11-13T04:49:36.688936Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 1 for 'Water' (Category pagination Next button disabled). Total category yield: 1"}
+{"timestamp": "2026-11-13T04:49:36.695784Z", "level": "INFO", "logger": "WalmartScraper", "message": "Starting scraper run for Store #4012 (1234 Main St, Dallas, TX 75201) on 2026-11-09"}
+{"timestamp": "2026-11-13T04:49:36.696050Z", "level": "INFO", "logger": "WalmartScraper", "message": "[STORE LOCK] Injecting store affinity cookies for Store #4012 (ZIP: 75001)..."}
+{"timestamp": "2026-11-13T04:49:36.697022Z", "level": "INFO", "logger": "WalmartScraper", "message": "[FULFILLMENT CONFIRMED] Store #4012 (1234 Main St, Dallas, TX 75201) and PICKUP mode affirmatively observed in retailer network response."}
+{"timestamp": "2026-11-13T04:49:36.697890Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loaded 1 category/subcategory endpoints."}
+{"timestamp": "2026-11-13T04:49:36.698163Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/cp/water"}
+{"timestamp": "2026-11-13T04:49:36.698388Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:49:36.698482Z", "level": "WARNING", "logger": "WalmartScraper", "message": "Error loading https://www.walmart.com/cp/water?affinityOverride=store: Simulated mid-run network disconnect. Retrying..."}
+{"timestamp": "2026-11-13T04:49:36.698616Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 2)..."}
+{"timestamp": "2026-11-13T04:49:36.698705Z", "level": "WARNING", "logger": "WalmartScraper", "message": "Error loading https://www.walmart.com/cp/water?affinityOverride=store: Simulated mid-run network disconnect. Retrying..."}
+{"timestamp": "2026-11-13T04:49:36.698795Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 3)..."}
+{"timestamp": "2026-11-13T04:49:36.698859Z", "level": "WARNING", "logger": "WalmartScraper", "message": "Error loading https://www.walmart.com/cp/water?affinityOverride=store: Simulated mid-run network disconnect. Retrying..."}
+{"timestamp": "2026-11-13T04:49:36.698940Z", "level": "ERROR", "logger": "WalmartScraper", "message": "[ROUTE FAILURE] Failed to load page 1 after max retries for route 'Beverages > Water'."}
+{"timestamp": "2026-11-13T04:49:36.699316Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[ROUTE UNRESOLVED] Route 'Beverages > Water' remained incomplete (route_failed=True, natural_completion=False). Preserving in failed_routes."}
+{"timestamp": "2026-11-13T04:49:36.703593Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/cp/water"}
+{"timestamp": "2026-11-13T04:49:36.704478Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:49:38.308150Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 2 product containers"}
+{"timestamp": "2026-11-13T04:49:38.308685Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 2 new unique records (category total: 2)"}
+{"timestamp": "2026-11-13T04:49:38.309861Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 2 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:49:38.310065Z", "level": "WARNING", "logger": "WalmartScraper", "message": "Error loading https://www.walmart.com/cp/water?page=2&affinityOverride=store: Page 2 timeout. Retrying..."}
+{"timestamp": "2026-11-13T04:49:40.312132Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 2 for Water (attempt 2)..."}
+{"timestamp": "2026-11-13T04:49:40.312488Z", "level": "WARNING", "logger": "WalmartScraper", "message": "Error loading https://www.walmart.com/cp/water?page=2&affinityOverride=store: Page 2 timeout. Retrying..."}
+{"timestamp": "2026-11-13T04:49:44.314632Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 2 for Water (attempt 3)..."}
+{"timestamp": "2026-11-13T04:49:44.314934Z", "level": "WARNING", "logger": "WalmartScraper", "message": "Error loading https://www.walmart.com/cp/water?page=2&affinityOverride=store: Page 2 timeout. Retrying..."}
+{"timestamp": "2026-11-13T04:49:50.316649Z", "level": "ERROR", "logger": "WalmartScraper", "message": "[ROUTE FAILURE] Failed to load page 2 after max retries for route 'Beverages > Water'."}
+{"timestamp": "2026-11-13T04:49:50.318982Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[ROUTE UNRESOLVED] Route 'Beverages > Water' remained incomplete (route_failed=True, natural_completion=False). Preserving in failed_routes."}
+{"timestamp": "2026-11-13T04:49:50.319748Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/cp/water"}
+{"timestamp": "2026-11-13T04:49:50.323140Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Water' from page 2 (prior staged items: 2)"}
+{"timestamp": "2026-11-13T04:49:50.323837Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 2 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:49:51.926964Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 2 found 1 product containers"}
+{"timestamp": "2026-11-13T04:49:51.929416Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 2 yielded 1 new unique records (category total: 3)"}
+{"timestamp": "2026-11-13T04:49:51.931663Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 2 for 'Water' (Category pagination Next button disabled). Total category yield: 3"}
+{"timestamp": "2026-11-13T04:50:17.018068Z", "level": "INFO", "logger": "WalmartScraper", "message": "[STORE LOCK] Injecting store affinity cookies for Store #4012 (ZIP: 75001)..."}
+{"timestamp": "2026-11-13T04:50:18.520961Z", "level": "INFO", "logger": "WalmartScraper", "message": "[FULFILLMENT CONFIRMED] Store #4012 (1234 Main St, Dallas, TX 75201) and PICKUP mode affirmatively observed in retailer network response."}
+{"timestamp": "2026-11-13T04:50:18.521127Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/browse/pantry/water/1"}
+{"timestamp": "2026-11-13T04:50:18.521876Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:50:20.125205Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 2 product containers"}
+{"timestamp": "2026-11-13T04:50:20.126248Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 2 new unique records (category total: 2)"}
+{"timestamp": "2026-11-13T04:50:20.126922Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 1 for 'Water' (Category pagination Next button disabled). Total category yield: 2"}
+{"timestamp": "2026-11-13T04:50:36.773791Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Soft Drinks] starting from https://walmart.com/cp/soda"}
+{"timestamp": "2026-11-13T04:50:36.774006Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Soft Drinks' from page 1 (prior staged items: 0)"}
+{"timestamp": "2026-11-13T04:50:36.774195Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Soft Drinks (attempt 1)..."}
+{"timestamp": "2026-11-13T04:50:38.378264Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 1 product containers"}
+{"timestamp": "2026-11-13T04:50:38.380789Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 1 new unique records (category total: 1)"}
+{"timestamp": "2026-11-13T04:50:38.382389Z", "level": "ERROR", "logger": "WalmartScraper", "message": "[AMBIGUOUS PAGINATION INCOMPLETE] Next selector missing on page 1 (1 containers) for route 'Beverages > Soft Drinks' without explicit terminal/total evidence (No explicit terminal indicator or matching total results evidence found). A short page is not proof of exhaustion. Route remains incomplete."}
+{"timestamp": "2026-11-13T04:50:38.383394Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[ROUTE UNRESOLVED] Route 'Beverages > Soft Drinks' remained incomplete (route_failed=True, natural_completion=False). Preserving in failed_routes."}
+{"timestamp": "2026-11-13T04:50:38.383600Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Pantry > Pasta] starting from https://walmart.com/cp/pasta"}
+{"timestamp": "2026-11-13T04:50:38.384204Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Pasta (attempt 1)..."}
+{"timestamp": "2026-11-13T04:50:39.988587Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 1 product containers"}
+{"timestamp": "2026-11-13T04:50:39.989020Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 1 new unique records (category total: 1)"}
+{"timestamp": "2026-11-13T04:50:39.990125Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 1 for 'Pasta' (Category pagination Next button disabled). Total category yield: 1"}
+{"timestamp": "2026-11-13T04:50:39.991778Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Soft Drinks] starting from https://walmart.com/cp/soda"}
+{"timestamp": "2026-11-13T04:50:39.991946Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Soft Drinks' from page 1 (prior staged items: 1)"}
+{"timestamp": "2026-11-13T04:50:39.992208Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Soft Drinks (attempt 1)..."}
+{"timestamp": "2026-11-13T04:50:41.597485Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 1 product containers"}
+{"timestamp": "2026-11-13T04:50:41.597952Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 0 newly deduplicated items (containers: 1). Continuing."}
+{"timestamp": "2026-11-13T04:50:41.599525Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 1 for 'Soft Drinks' (Category pagination Next button disabled). Total category yield: 1"}
+{"timestamp": "2026-11-13T04:50:41.616803Z", "level": "INFO", "logger": "WalmartScraper", "message": "Starting scraper run for Store #4012 (1234 Main St, Dallas, TX 75201) on 2026-11-08"}
+{"timestamp": "2026-11-13T04:50:41.617634Z", "level": "INFO", "logger": "WalmartScraper", "message": "[STORE LOCK] Injecting store affinity cookies for Store #4012 (ZIP: 75001)..."}
+{"timestamp": "2026-11-13T04:50:41.620091Z", "level": "INFO", "logger": "WalmartScraper", "message": "[FULFILLMENT CONFIRMED] Store #4012 (1234 Main St, Dallas, TX 75201) and PICKUP mode affirmatively observed in retailer network response."}
+{"timestamp": "2026-11-13T04:50:41.621939Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loaded 2 category/subcategory endpoints."}
+{"timestamp": "2026-11-13T04:50:41.622376Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/cp/water"}
+{"timestamp": "2026-11-13T04:50:41.622611Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:50:41.624497Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 1 product containers"}
+{"timestamp": "2026-11-13T04:50:41.625811Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[MISSING SOURCE OFFER] Item 101 has no observed source offer price. Disqualifying local price."}
+{"timestamp": "2026-11-13T04:50:41.626125Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 1 new unique records (category total: 1)"}
+{"timestamp": "2026-11-13T04:50:41.627659Z", "level": "ERROR", "logger": "WalmartScraper", "message": "[AMBIGUOUS PAGINATION INCOMPLETE] Next selector missing on page 1 (1 containers) for route 'Beverages > Water' without explicit terminal/total evidence (No explicit terminal indicator or matching total results evidence found). A short page is not proof of exhaustion. Route remains incomplete."}
+{"timestamp": "2026-11-13T04:50:41.628570Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[ROUTE UNRESOLVED] Route 'Beverages > Water' remained incomplete (route_failed=True, natural_completion=False). Preserving in failed_routes."}
+{"timestamp": "2026-11-13T04:50:41.628712Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Soft Drinks] starting from https://www.walmart.com/cp/soda"}
+{"timestamp": "2026-11-13T04:50:41.628913Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Soft Drinks (attempt 1)..."}
+{"timestamp": "2026-11-13T04:50:41.629376Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 1 product containers"}
+{"timestamp": "2026-11-13T04:50:41.629557Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[MISSING SOURCE OFFER] Item 201 has no observed source offer price. Disqualifying local price."}
+{"timestamp": "2026-11-13T04:50:41.629747Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 1 new unique records (category total: 1)"}
+{"timestamp": "2026-11-13T04:50:41.631994Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 1 for 'Soft Drinks' (Category pagination Next button disabled). Total category yield: 1"}
+{"timestamp": "2026-11-13T04:50:41.635688Z", "level": "INFO", "logger": "WalmartScraper", "message": "Starting scraper run for Store #4012 (1234 Main St, Dallas, TX 75201) on 2026-11-08"}
+{"timestamp": "2026-11-13T04:50:41.635975Z", "level": "INFO", "logger": "WalmartScraper", "message": "[STORE LOCK] Injecting store affinity cookies for Store #4012 (ZIP: 75001)..."}
+{"timestamp": "2026-11-13T04:50:41.636357Z", "level": "INFO", "logger": "WalmartScraper", "message": "[FULFILLMENT CONFIRMED] Store #4012 (1234 Main St, Dallas, TX 75201) and PICKUP mode affirmatively observed in retailer network response."}
+{"timestamp": "2026-11-13T04:50:41.636598Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loaded 2 category/subcategory endpoints."}
+{"timestamp": "2026-11-13T04:50:41.636696Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/cp/water"}
+{"timestamp": "2026-11-13T04:50:41.636769Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Water' from page 1 (prior staged items: 1)"}
+{"timestamp": "2026-11-13T04:50:41.637078Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:50:41.637530Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 1 product containers"}
+{"timestamp": "2026-11-13T04:50:41.637741Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[MISSING SOURCE OFFER] Item 101 has no observed source offer price. Disqualifying local price."}
+{"timestamp": "2026-11-13T04:50:41.637923Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 0 newly deduplicated items (containers: 1). Continuing."}
+{"timestamp": "2026-11-13T04:50:41.638649Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 1 for 'Water' (Category pagination Next button disabled). Total category yield: 1"}
+{"timestamp": "2026-11-13T04:50:41.639078Z", "level": "INFO", "logger": "WalmartScraper", "message": "[RESUME SKIP] Route 'Beverages > Soft Drinks' already durably completed (1 items)."}
+{"timestamp": "2026-11-13T04:50:41.645358Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/cp/water"}
+{"timestamp": "2026-11-13T04:50:41.646736Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Water' from page 1 (prior staged items: 0)"}
+{"timestamp": "2026-11-13T04:50:41.647361Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:50:43.251100Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 2 product containers"}
+{"timestamp": "2026-11-13T04:50:43.252337Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 2 new unique records (category total: 2)"}
+{"timestamp": "2026-11-13T04:50:43.254838Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 1 for 'Water' (Category pagination Next button disabled). Total category yield: 2"}
+{"timestamp": "2026-11-13T04:50:43.259006Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/browse/pantry/water/976759_976782_1001438"}
+{"timestamp": "2026-11-13T04:50:43.259612Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:50:44.864378Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 2 product containers"}
+{"timestamp": "2026-11-13T04:50:44.865213Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 2 new unique records (category total: 2)"}
+{"timestamp": "2026-11-13T04:50:44.866590Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 2 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:50:46.471986Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 2 found 2 product containers"}
+{"timestamp": "2026-11-13T04:50:46.473014Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 2 yielded 2 new unique records (category total: 4)"}
+{"timestamp": "2026-11-13T04:50:46.475028Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 3 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:50:48.079717Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 3 found 2 product containers"}
+{"timestamp": "2026-11-13T04:50:48.082239Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 3 yielded 1 new unique records (category total: 5)"}
+{"timestamp": "2026-11-13T04:50:48.084572Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 3 for 'Water' (Category pagination Next button disabled). Total category yield: 5"}
+{"timestamp": "2026-11-13T04:50:48.087109Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Juices] starting from https://www.walmart.com/cp/juice"}
+{"timestamp": "2026-11-13T04:50:48.087273Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Juices' from page 1 (prior staged items: 0)"}
+{"timestamp": "2026-11-13T04:50:48.087416Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Juices (attempt 1)..."}
+{"timestamp": "2026-11-13T04:50:49.689662Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 3 product containers"}
+{"timestamp": "2026-11-13T04:50:49.690450Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 3 new unique records (category total: 3)"}
+{"timestamp": "2026-11-13T04:50:49.691586Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed single-page category for 'Juices' verified by explicit source terminal evidence: Explicit pagination terminal indicator confirmed (page 1 of 1): 'Page 1 of 1'. Total yield: 3"}
+{"timestamp": "2026-11-13T04:50:49.692655Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Cider] starting from https://www.walmart.com/cp/cider"}
+{"timestamp": "2026-11-13T04:50:49.693847Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Cider (attempt 1)..."}
+{"timestamp": "2026-11-13T04:50:51.298549Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 3 product containers"}
+{"timestamp": "2026-11-13T04:50:51.299876Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 3 new unique records (category total: 3)"}
+{"timestamp": "2026-11-13T04:50:51.301969Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 1 for 'Cider' (Category pagination Next button disabled). Total category yield: 3"}
+{"timestamp": "2026-11-13T04:50:51.308815Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Coffee] starting from https://www.walmart.com/cp/coffee"}
+{"timestamp": "2026-11-13T04:50:51.309260Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Coffee' from page 1 (prior staged items: 0)"}
+{"timestamp": "2026-11-13T04:50:51.310703Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Coffee (attempt 1)..."}
+{"timestamp": "2026-11-13T04:50:52.915549Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 2 product containers"}
+{"timestamp": "2026-11-13T04:50:52.916330Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 2 new unique records (category total: 2)"}
+{"timestamp": "2026-11-13T04:50:52.919450Z", "level": "ERROR", "logger": "WalmartScraper", "message": "[AMBIGUOUS PAGINATION INCOMPLETE] Next selector missing on page 1 (2 containers) for route 'Beverages > Coffee' without explicit terminal/total evidence (Explicit pagination confirms active non-terminal page (1 of 10): 'Page 1 of 10'). A short page is not proof of exhaustion. Route remains incomplete."}
+{"timestamp": "2026-11-13T04:50:52.921051Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[ROUTE UNRESOLVED] Route 'Beverages > Coffee' remained incomplete (route_failed=True, natural_completion=False). Preserving in failed_routes."}
+{"timestamp": "2026-11-13T04:50:52.927338Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Tea] starting from https://www.walmart.com/cp/tea"}
+{"timestamp": "2026-11-13T04:50:52.927563Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Tea' from page 1 (prior staged items: 0)"}
+{"timestamp": "2026-11-13T04:50:52.927850Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Tea (attempt 1)..."}
+{"timestamp": "2026-11-13T04:50:54.530932Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 2 product containers"}
+{"timestamp": "2026-11-13T04:50:54.531489Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 2 new unique records (category total: 2)"}
+{"timestamp": "2026-11-13T04:50:54.532467Z", "level": "ERROR", "logger": "WalmartScraper", "message": "[AMBIGUOUS PAGINATION INCOMPLETE] Next selector missing on page 1 (2 containers) for route 'Beverages > Tea' without explicit terminal/total evidence (No explicit terminal indicator or matching total results evidence found). A short page is not proof of exhaustion. Route remains incomplete."}
+{"timestamp": "2026-11-13T04:50:54.533865Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[ROUTE UNRESOLVED] Route 'Beverages > Tea' remained incomplete (route_failed=True, natural_completion=False). Preserving in failed_routes."}
+{"timestamp": "2026-11-13T04:50:54.536920Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/cp/water"}
+{"timestamp": "2026-11-13T04:50:54.537074Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Water' from page 2 (prior staged items: 0)"}
+{"timestamp": "2026-11-13T04:50:54.537168Z", "level": "ERROR", "logger": "WalmartScraper", "message": "[RESUME BEYOND SAFETY CAP] Category 'Beverages > Water' resumed at page 2, which exceeds max_pages_per_category=1 without natural completion. Preserving unresolved route in failed_routes."}
+{"timestamp": "2026-11-13T04:50:54.537510Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[ROUTE UNRESOLVED] Route 'Beverages > Water' remained incomplete (route_failed=True, natural_completion=False). Preserving in failed_routes."}
+{"timestamp": "2026-11-13T04:50:54.538921Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/cp/water"}
+{"timestamp": "2026-11-13T04:50:54.539045Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Water' from page 1 (prior staged items: 0)"}
+{"timestamp": "2026-11-13T04:50:54.539180Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:50:56.142799Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 1 product containers"}
+{"timestamp": "2026-11-13T04:50:56.145252Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 1 new unique records (category total: 1)"}
+{"timestamp": "2026-11-13T04:50:56.148301Z", "level": "ERROR", "logger": "WalmartScraper", "message": "[AMBIGUOUS PAGINATION INCOMPLETE] Next selector missing on page 1 (1 containers) for route 'Beverages > Water' without explicit terminal/total evidence (No explicit terminal indicator or matching total results evidence found). A short page is not proof of exhaustion. Route remains incomplete."}
+{"timestamp": "2026-11-13T04:50:56.149002Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[ROUTE UNRESOLVED] Route 'Beverages > Water' remained incomplete (route_failed=True, natural_completion=False). Preserving in failed_routes."}
+{"timestamp": "2026-11-13T04:50:56.152909Z", "level": "INFO", "logger": "WalmartScraper", "message": "[STORE LOCK] Injecting store affinity cookies for Store #4012 (ZIP: 75001)..."}
+{"timestamp": "2026-11-13T04:50:57.655617Z", "level": "INFO", "logger": "WalmartScraper", "message": "[FULFILLMENT CONFIRMED] Store #4012 (1234 Main St, Dallas, TX 75201) and PICKUP mode affirmatively observed in retailer network response."}
+{"timestamp": "2026-11-13T04:50:57.655780Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/browse/pantry/water/1"}
+{"timestamp": "2026-11-13T04:50:57.655980Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:50:59.261086Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 2 product containers"}
+{"timestamp": "2026-11-13T04:50:59.262176Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 2 new unique records (category total: 2)"}
+{"timestamp": "2026-11-13T04:50:59.264182Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 1 for 'Water' (Category pagination Next button disabled). Total category yield: 2"}
+{"timestamp": "2026-11-13T04:50:59.285233Z", "level": "INFO", "logger": "WalmartScraper", "message": "Starting scraper run for Store #4012 (1234 Main St, Dallas, TX 75201) on 2026-11-08"}
+{"timestamp": "2026-11-13T04:50:59.286043Z", "level": "INFO", "logger": "WalmartScraper", "message": "[STORE LOCK] Injecting store affinity cookies for Store #4012 (ZIP: 75001)..."}
+{"timestamp": "2026-11-13T04:50:59.287410Z", "level": "INFO", "logger": "WalmartScraper", "message": "[FULFILLMENT CONFIRMED] Store #4012 (1234 Main St, Dallas, TX 75201) and PICKUP mode affirmatively observed in retailer network response."}
+{"timestamp": "2026-11-13T04:50:59.289038Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loaded 1 category/subcategory endpoints."}
+{"timestamp": "2026-11-13T04:50:59.289263Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/cp/water"}
+{"timestamp": "2026-11-13T04:50:59.289490Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:50:59.290120Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 1 product containers"}
+{"timestamp": "2026-11-13T04:50:59.290498Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 1 new unique records (category total: 1)"}
+{"timestamp": "2026-11-13T04:50:59.293275Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 1 for 'Water' (Category pagination Next button disabled). Total category yield: 1"}
+{"timestamp": "2026-11-13T04:50:59.302003Z", "level": "INFO", "logger": "WalmartScraper", "message": "Starting scraper run for Store #4012 (1234 Main St, Dallas, TX 75201) on 2026-11-09"}
+{"timestamp": "2026-11-13T04:50:59.302420Z", "level": "INFO", "logger": "WalmartScraper", "message": "[STORE LOCK] Injecting store affinity cookies for Store #4012 (ZIP: 75001)..."}
+{"timestamp": "2026-11-13T04:50:59.302998Z", "level": "INFO", "logger": "WalmartScraper", "message": "[FULFILLMENT CONFIRMED] Store #4012 (1234 Main St, Dallas, TX 75201) and PICKUP mode affirmatively observed in retailer network response."}
+{"timestamp": "2026-11-13T04:50:59.303436Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loaded 1 category/subcategory endpoints."}
+{"timestamp": "2026-11-13T04:50:59.303593Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/cp/water"}
+{"timestamp": "2026-11-13T04:50:59.303808Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:50:59.303925Z", "level": "WARNING", "logger": "WalmartScraper", "message": "Error loading https://www.walmart.com/cp/water?affinityOverride=store: Simulated mid-run network disconnect. Retrying..."}
+{"timestamp": "2026-11-13T04:50:59.304101Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 2)..."}
+{"timestamp": "2026-11-13T04:50:59.304226Z", "level": "WARNING", "logger": "WalmartScraper", "message": "Error loading https://www.walmart.com/cp/water?affinityOverride=store: Simulated mid-run network disconnect. Retrying..."}
+{"timestamp": "2026-11-13T04:50:59.304426Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 3)..."}
+{"timestamp": "2026-11-13T04:50:59.304579Z", "level": "WARNING", "logger": "WalmartScraper", "message": "Error loading https://www.walmart.com/cp/water?affinityOverride=store: Simulated mid-run network disconnect. Retrying..."}
+{"timestamp": "2026-11-13T04:50:59.304842Z", "level": "ERROR", "logger": "WalmartScraper", "message": "[ROUTE FAILURE] Failed to load page 1 after max retries for route 'Beverages > Water'."}
+{"timestamp": "2026-11-13T04:50:59.305278Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[ROUTE UNRESOLVED] Route 'Beverages > Water' remained incomplete (route_failed=True, natural_completion=False). Preserving in failed_routes."}
+{"timestamp": "2026-11-13T04:50:59.309595Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/cp/water"}
+{"timestamp": "2026-11-13T04:50:59.309994Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 1 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:51:00.915609Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 found 2 product containers"}
+{"timestamp": "2026-11-13T04:51:00.916062Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 1 yielded 2 new unique records (category total: 2)"}
+{"timestamp": "2026-11-13T04:51:00.917004Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 2 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:51:00.917399Z", "level": "WARNING", "logger": "WalmartScraper", "message": "Error loading https://www.walmart.com/cp/water?page=2&affinityOverride=store: Page 2 timeout. Retrying..."}
+{"timestamp": "2026-11-13T04:51:02.919103Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 2 for Water (attempt 2)..."}
+{"timestamp": "2026-11-13T04:51:02.919435Z", "level": "WARNING", "logger": "WalmartScraper", "message": "Error loading https://www.walmart.com/cp/water?page=2&affinityOverride=store: Page 2 timeout. Retrying..."}
+{"timestamp": "2026-11-13T04:51:06.920961Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 2 for Water (attempt 3)..."}
+{"timestamp": "2026-11-13T04:51:06.921362Z", "level": "WARNING", "logger": "WalmartScraper", "message": "Error loading https://www.walmart.com/cp/water?page=2&affinityOverride=store: Page 2 timeout. Retrying..."}
+{"timestamp": "2026-11-13T04:51:12.922346Z", "level": "ERROR", "logger": "WalmartScraper", "message": "[ROUTE FAILURE] Failed to load page 2 after max retries for route 'Beverages > Water'."}
+{"timestamp": "2026-11-13T04:51:12.923860Z", "level": "WARNING", "logger": "WalmartScraper", "message": "[ROUTE UNRESOLVED] Route 'Beverages > Water' remained incomplete (route_failed=True, natural_completion=False). Preserving in failed_routes."}
+{"timestamp": "2026-11-13T04:51:12.926477Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY HARVEST] [Beverages > Water] starting from https://www.walmart.com/cp/water"}
+{"timestamp": "2026-11-13T04:51:12.926748Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CHECKPOINT RESUME] Resuming category 'Water' from page 2 (prior staged items: 2)"}
+{"timestamp": "2026-11-13T04:51:12.927136Z", "level": "INFO", "logger": "WalmartScraper", "message": "Loading page 2 for Water (attempt 1)..."}
+{"timestamp": "2026-11-13T04:51:14.529996Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 2 found 1 product containers"}
+{"timestamp": "2026-11-13T04:51:14.531051Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 2 yielded 1 new unique records (category total: 3)"}
+{"timestamp": "2026-11-13T04:51:14.532736Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 2 for 'Water' (Category pagination Next button disabled). Total category yield: 3"}

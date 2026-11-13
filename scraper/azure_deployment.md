@@ -66,7 +66,10 @@ az containerapp job create \
   --image acrwalmartscraper.azurecr.io/walmart-scraper:v1 \
   --registry-server acrwalmartscraper.azurecr.io \
   --env-vars \
+    AZURE_KEY_VAULT_URL="https://kv-walmart-scraper.vault.azure.net/" \
+    AZURE_STORAGE_ACCOUNT_URL="https://stwalmartscraper.blob.core.windows.net" \
     AZURE_STORAGE_CONTAINER="walmart-scraper-data" \
+    STORE_TARGET="4012" \
     CATEGORIES_CSV_PATH="Walmart_Category_URLs.csv"
 ```
 

@@ -2065,6 +2065,463 @@ class TestWalmartScraperRules(unittest.TestCase):
 
         asyncio.run(_run_checks())
 
+    def test_actual_scrape_category_multi_page_increasing_unique_counts(self):
+        """
+        Multi-page category traversal regression:
+        - Traverses Page 1 -> Page 2 -> Page 3 through actual scrape_category path.
+        - Verifies structured URL pagination (?affinityOverride=store, ?page=2&..., ?page=3&...).
+        - Verifies increasing unique-product counts across pages (2 -> 4 -> 5, deduplicating overlap).
+        - Completes naturally only when Page 3 presents category-scoped disabled Next button.
+        """
+        import asyncio
+        import shutil
+        from config import StoreConfig, ScraperSettings
+        from walmart_scraper import WalmartProductionScraper
+
+        test_staging = ".staging_reg_multipage"
+        test_out = "output_reg_multipage"
+        if os.path.exists(test_staging): shutil.rmtree(test_staging)
+        if os.path.exists(test_out): shutil.rmtree(test_out)
+
+        def make_item(item_id, title_txt, price_txt):
+            t = ControlledMockElement("span", {"data-automation-id": "product-title"}, text=title_txt)
+            l = ControlledMockElement("a", {"href": f"/ip/item/{item_id}"}, text=title_txt)
+            p = ControlledMockElement("span", {"data-automation-id": "product-price"}, text=price_txt)
+            return ControlledMockElement("div", {"data-item-id": item_id}, text=title_txt, children=[t, l, p])
+
+        async def _run_test():
+            store = StoreConfig("4012", "75001", "Walmart Supercenter #4012", "1234 Main St, Dallas, TX 75201")
+            settings = ScraperSettings()
+            settings.delay_between_requests_sec = 0.0
+            settings.output_directory = test_out
+            scraper = WalmartProductionScraper(store, settings, resume=False, crawl_date="2026-11-12", staging_dir=test_staging)
+
+            per_page_counts = []
+
+            class MultiPageMockPage(ControlledMockPage):
+                def __init__(self):
+                    super().__init__()
+                    self.visited_urls = []
+                    self.curr_page_num = 1
+
+                async def goto(self, url, timeout=None, wait_until=None):
+                    self.visited_urls.append(url)
+                    if "page=3" in url:
+                        self.curr_page_num = 3
+                        self.product_elements = [
+                            make_item("104", "Smartwater, 33.8 fl oz", "$2.48"),  # Duplicate from page 2
+                            make_item("105", "Evian Natural Spring Water, 1 L", "$2.98"),  # New unique item 5
+                        ]
+                        self.next_button = ControlledMockElement("button", {"aria-label": "Next Page", "disabled": "true"}, text="Next")
+                        self.pagination_element = ControlledMockElement("nav", {"data-automation-id": "pagination"}, text="Page 3 of 3", children=[self.next_button])
+                    elif "page=2" in url:
+                        self.curr_page_num = 2
+                        self.product_elements = [
+                            make_item("103", "Fiji Natural Artesian Water, 16.9 fl oz", "$2.18"),
+                            make_item("104", "Smartwater, 33.8 fl oz", "$2.48"),
+                        ]
+                        self.next_button = ControlledMockElement("button", {"aria-label": "Next Page"}, text="Next")
+                        self.pagination_element = ControlledMockElement("nav", {"data-automation-id": "pagination"}, text="Page 2 of 3", children=[self.next_button])
+                    else:
+                        self.curr_page_num = 1
+                        self.product_elements = [
+                            make_item("101", "Dasani Purified Water, 16.9 fl oz, 24 Pack", "$5.98"),
+                            make_item("102", "Great Value Drinking Water, 16.9 fl oz, 40 Pack", "$5.36"),
+                        ]
+                        self.next_button = ControlledMockElement("button", {"aria-label": "Next Page"}, text="Next")
+                        self.pagination_element = ControlledMockElement("nav", {"data-automation-id": "pagination"}, text="Page 1 of 3", children=[self.next_button])
+                    per_page_counts.append(self.curr_page_num)
+                    return ControlledMockResponse(200, url)
+
+            page = MultiPageMockPage()
+            total_yield = await scraper.scrape_category(page, 0, "Beverages", "Water", "https://www.walmart.com/browse/pantry/water/976759_976782_1001438")
+
+            self.assertEqual(per_page_counts, [1, 2, 3], "Must traverse pages 1, 2, and 3 sequentially")
+            self.assertEqual(len(page.visited_urls), 3)
+            self.assertNotIn("page=", page.visited_urls[0])
+            self.assertIn("page=2", page.visited_urls[1])
+            self.assertIn("page=3", page.visited_urls[2])
+            self.assertEqual(total_yield, 5, "Must yield 5 unique items across 3 pages (deduplicating overlap)")
+            self.assertEqual(len(scraper.scraped_records), 5)
+            self.assertEqual(scraper.category_yields["Beverages > Water"], 5)
+            self.assertNotIn("Beverages > Water", scraper.failed_routes)
+
+        asyncio.run(_run_test())
+
+        if os.path.exists(test_staging): shutil.rmtree(test_staging)
+        if os.path.exists(test_out): shutil.rmtree(test_out)
+
+    def test_actual_store_pickup_ssr_next_data_and_pricing_binding(self):
+        """
+        Verifies SSR __NEXT_DATA__ store/Pickup extraction and item-level price role binding:
+        - Store #4012 + PICKUP verified from __NEXT_DATA__ locationContext/searchResult.
+        - Raw evidence persisted and linked cleanly.
+        - Sale item (was $6.98, offer $5.98) populates regular_price='6.98', sale_price='5.98'.
+        - Non-sale item (current $5.36, no was-price) populates regular_price='5.36', sale_price=''.
+        """
+        import asyncio
+        import shutil
+        from config import StoreConfig, ScraperSettings
+        from walmart_scraper import WalmartProductionScraper
+
+        test_staging = ".staging_reg_ssr_pickup"
+        test_out = "output_reg_ssr_pickup"
+        if os.path.exists(test_staging): shutil.rmtree(test_staging)
+        if os.path.exists(test_out): shutil.rmtree(test_out)
+
+        async def _run_test():
+            store = StoreConfig("4012", "75001", "Walmart Supercenter #4012", "1234 Main St, Dallas, TX 75201")
+            settings = ScraperSettings()
+            settings.delay_between_requests_sec = 0.0
+            settings.output_directory = test_out
+            scraper = WalmartProductionScraper(store, settings, resume=False, crawl_date="2026-11-12", staging_dir=test_staging)
+
+            ssr_payload = {
+                "props": {
+                    "pageProps": {
+                        "locationContext": {
+                            "intent": "PICKUP",
+                            "pickupStore": {"storeId": "4012", "postalCode": "75001"}
+                        },
+                        "initialData": {
+                            "searchResult": {
+                                "storeId": "4012",
+                                "fulfillmentMode": "PICKUP",
+                                "itemStacks": [{
+                                    "items": [
+                                        {
+                                            "usItemId": "101",
+                                            "priceInfo": {"currentPrice": {"priceString": "$5.98"}},
+                                            "fulfillment": {"pickupAvailable": True, "inStoreStock": True}
+                                        },
+                                        {
+                                            "usItemId": "102",
+                                            "priceInfo": {"currentPrice": {"priceString": "$5.36"}},
+                                            "fulfillment": {"pickupAvailable": True, "inStoreStock": True}
+                                        }
+                                    ]
+                                }]
+                            }
+                        }
+                    }
+                }
+            }
+
+            p1 = ControlledMockElement("div", {"data-item-id": "101"}, text="Dasani Water, 16.9 fl oz, 24 Pack", children=[
+                ControlledMockElement("span", {"data-automation-id": "product-title"}, text="Dasani Water, 16.9 fl oz, 24 Pack"),
+                ControlledMockElement("a", {"href": "/ip/dasani/101"}, text="Dasani"),
+                ControlledMockElement("span", {"data-automation-id": "product-price"}, text="$5.98"),
+                ControlledMockElement("span", {"data-automation-id": "was-price"}, text="$6.98"),
+            ])
+            p2 = ControlledMockElement("div", {"data-item-id": "102"}, text="Great Value Water, 40 Pack, 16.9 fl oz", children=[
+                ControlledMockElement("span", {"data-automation-id": "product-title"}, text="Great Value Water, 40 Pack, 16.9 fl oz"),
+                ControlledMockElement("a", {"href": "/ip/gv-water/102"}, text="Great Value"),
+                ControlledMockElement("span", {"data-automation-id": "product-price"}, text="$5.36"),
+            ])
+
+            next_disabled = ControlledMockElement("button", {"aria-label": "Next Page", "disabled": "true"}, text="Next")
+            pag_el = ControlledMockElement("nav", {"data-automation-id": "pagination"}, text="Page 1 of 1", children=[next_disabled])
+            page = ControlledMockPage(
+                product_elements=[p1, p2],
+                next_button=next_disabled,
+                pagination_element=pag_el,
+                next_data_json=json.dumps(ssr_payload)
+            )
+            ctx = ControlledMockContext(page)
+
+            ctx_ok = await scraper.initialize_store_context(ctx, page)
+            self.assertTrue(ctx_ok, "SSR __NEXT_DATA__ must verify Store #4012 + PICKUP context")
+
+            yield_cnt = await scraper.scrape_category(page, 0, "Beverages", "Water", "https://www.walmart.com/browse/pantry/water/1")
+            self.assertEqual(yield_cnt, 2)
+            self.assertEqual(len(scraper.scraped_records), 2)
+
+            rec_sale = scraper.scraped_records[0]
+            self.assertEqual(rec_sale["regular_price"], "$6.98")
+            self.assertEqual(rec_sale["sale_price"], "$5.98")
+
+            rec_reg = scraper.scraped_records[1]
+            self.assertEqual(rec_reg["regular_price"], "$5.36")
+            self.assertEqual(rec_reg["sale_price"], "")
+            self.assertTrue(os.path.exists(scraper.checkpoint_mgr.raw_evidence_file))
+
+        asyncio.run(_run_test())
+
+        if os.path.exists(test_staging): shutil.rmtree(test_staging)
+        if os.path.exists(test_out): shutil.rmtree(test_out)
+
+    def test_failed_or_interrupted_run_preserves_previous_usable_delivery(self):
+        """
+        Verifies end-to-end protection of prior committed production deliveries:
+        - Run 1 (2026-11-08) succeeds and commits release + publication_manifest_4012.json + walmart_4012_2026-11-08.json.
+        - Run 2 on a subsequent date (2026-11-09) fails/is interrupted mid-crawl.
+        - Run 2 must be publication_gated=True, must NOT overwrite publication_manifest_4012.json,
+          and must preserve Run 1's committed products file & SHA-256 completely untouched.
+        """
+        import asyncio
+        import csv
+        import hashlib
+        import shutil
+        from unittest.mock import patch
+        from config import StoreConfig, ScraperSettings
+        import walmart_scraper
+        from walmart_scraper import WalmartProductionScraper
+
+        test_staging = ".staging_reg_preserve_prev"
+        test_out = "output_reg_preserve_prev"
+        if os.path.exists(test_staging): shutil.rmtree(test_staging)
+        if os.path.exists(test_out): shutil.rmtree(test_out)
+        os.makedirs(test_staging, exist_ok=True)
+
+        temp_csv = os.path.join(test_staging, "cats.csv")
+        with open(temp_csv, "w", encoding="utf-8", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(["category", "sub_category", "walmart_url", "canary_upc"])
+            w.writerow(["Beverages", "Water", "https://www.walmart.com/cp/water", ""])
+
+        async def _run_test():
+            store = StoreConfig("4012", "75001", "Walmart Supercenter #4012", "1234 Main St, Dallas, TX 75201")
+            settings = ScraperSettings()
+            settings.delay_between_requests_sec = 0.0
+            settings.output_directory = test_out
+            settings.categories_csv_path = temp_csv
+            settings.min_expected_records_per_run = 1
+
+            class DeliveryPage(ControlledMockPage):
+                def __init__(self, should_fail=False):
+                    super().__init__()
+                    self.should_fail = should_fail
+
+                async def goto(self, url, timeout=None, wait_until=None):
+                    if "cp/water" in url and self.should_fail:
+                        raise RuntimeError("Simulated mid-run network disconnect")
+                    if "response" in self.listeners:
+                        payload = {
+                            "data": {
+                                "searchResult": {
+                                    "storeId": "4012",
+                                    "fulfillmentMode": "PICKUP",
+                                    "itemStacks": [{"items": [{"usItemId": "101", "price": "$5.98", "fulfillment": {"pickupAvailable": True, "inStoreStock": True}}]}]
+                                }
+                            }
+                        }
+                        for h in self.listeners["response"]:
+                            await h(ControlledMockNetworkResponse(url="https://www.walmart.com/orchestra/home/graphql/browse/v1", text_content=json.dumps(payload)))
+                    if "cp/water" in url:
+                        self.product_elements = [ControlledMockElement("div", {"data-item-id": "101"}, text="Water", children=[
+                            ControlledMockElement("span", {"data-automation-id": "product-title"}, text="Water 24 Pack"),
+                            ControlledMockElement("a", {"href": "/ip/water/101"}, text="Water"),
+                            ControlledMockElement("span", {"data-automation-id": "product-price"}, text="$5.98"),
+                        ])]
+                        self.next_button = ControlledMockElement("button", {"aria-label": "Next Page", "disabled": "true"}, text="Next")
+                        self.pagination_element = ControlledMockElement("nav", {"data-automation-id": "pagination"}, text="Page 1 of 1", children=[self.next_button])
+                    return ControlledMockResponse(200, url)
+
+            # --- RUN 1 (Committed usable delivery on 2026-11-08) ---
+            s1 = WalmartProductionScraper(store, settings, resume=False, crawl_date="2026-11-08", staging_dir=test_staging)
+            pw1 = ControlledMockPlaywrightContextManager(ControlledMockBrowser(ControlledMockContext(DeliveryPage(should_fail=False))))
+            with patch.object(walmart_scraper, "async_playwright", return_value=pw1), patch("asyncio.sleep", return_value=None):
+                res1 = await s1.run()
+
+            self.assertTrue(res1["success"])
+            pub1 = s1.checkpoint_mgr.get_active_publication()
+            self.assertIsNotNone(pub1)
+            self.assertEqual(pub1["crawl_date"], "2026-11-08")
+            run1_file = s1.checkpoint_mgr.production_target_file
+            self.assertTrue(os.path.exists(run1_file))
+            with open(run1_file, "rb") as f:
+                run1_sha = hashlib.sha256(f.read()).hexdigest()
+
+            # --- RUN 2 (Failed run on 2026-11-09) ---
+            s2 = WalmartProductionScraper(store, settings, resume=False, crawl_date="2026-11-09", staging_dir=test_staging)
+            pw2 = ControlledMockPlaywrightContextManager(ControlledMockBrowser(ControlledMockContext(DeliveryPage(should_fail=True))))
+            with patch.object(walmart_scraper, "async_playwright", return_value=pw2), patch("asyncio.sleep", return_value=None):
+                res2 = await s2.run()
+
+            self.assertFalse(res2["success"])
+            self.assertTrue(res2["publication_gated"])
+            self.assertFalse(os.path.exists(s2.checkpoint_mgr.production_target_file), "Failed Run 2 must NOT create a 2026-11-09 production delivery")
+
+            # Verify Run 1 committed delivery and manifest pointer remain intact
+            pub_after = s2.checkpoint_mgr.get_active_publication()
+            self.assertEqual(pub_after["release_id"], pub1["release_id"])
+            self.assertEqual(pub_after["crawl_date"], "2026-11-08")
+            with open(run1_file, "rb") as f:
+                run1_sha_after = hashlib.sha256(f.read()).hexdigest()
+            self.assertEqual(run1_sha, run1_sha_after, "Prior usable production file must remain byte-for-byte intact")
+
+        asyncio.run(_run_test())
+
+        if os.path.exists(test_staging): shutil.rmtree(test_staging)
+        if os.path.exists(test_out): shutil.rmtree(test_out)
+
+    def test_multipage_category_interruption_and_resume_yield_preservation(self):
+        """
+        Verifies multi-page mid-category crash & resume:
+        - Run 1 completes Page 1 (2 items), writes checkpoint current_page=2, and fails on Page 2.
+        - Run 2 resumes directly at Page 2 (without re-scraping Page 1) and finishes Page 2 (1 item).
+        - Committed category_yields reflects full cumulative count (2 + 1 = 3 unique items).
+        """
+        import asyncio
+        import shutil
+        from config import StoreConfig, ScraperSettings
+        from walmart_scraper import WalmartProductionScraper
+
+        test_staging = ".staging_reg_mp_resume"
+        test_out = "output_reg_mp_resume"
+        if os.path.exists(test_staging): shutil.rmtree(test_staging)
+        if os.path.exists(test_out): shutil.rmtree(test_out)
+
+        async def _run_test():
+            store = StoreConfig("4012", "75001", "Walmart Supercenter #4012", "1234 Main St, Dallas, TX 75201")
+            settings = ScraperSettings()
+            settings.delay_between_requests_sec = 0.0
+            settings.output_directory = test_out
+
+            class ResumableCategoryPage(ControlledMockPage):
+                def __init__(self, fail_page2=True):
+                    super().__init__()
+                    self.fail_page2 = fail_page2
+                    self.visited = []
+
+                async def goto(self, url, timeout=None, wait_until=None):
+                    self.visited.append(url)
+                    if "page=2" in url:
+                        if self.fail_page2:
+                            raise RuntimeError("Page 2 timeout")
+                        self.product_elements = [
+                            ControlledMockElement("div", {"data-item-id": "103"}, text="Item 3", children=[
+                                ControlledMockElement("span", {"data-automation-id": "product-title"}, text="Item 3, 12 oz"),
+                                ControlledMockElement("a", {"href": "/ip/item3/103"}, text="Item 3"),
+                            ])
+                        ]
+                        self.next_button = ControlledMockElement("button", {"aria-label": "Next Page", "disabled": "true"}, text="Next")
+                        self.pagination_element = ControlledMockElement("nav", {"data-automation-id": "pagination"}, text="Page 2 of 2", children=[self.next_button])
+                    else:
+                        self.product_elements = [
+                            ControlledMockElement("div", {"data-item-id": "101"}, text="Item 1", children=[
+                                ControlledMockElement("span", {"data-automation-id": "product-title"}, text="Item 1, 12 oz"),
+                                ControlledMockElement("a", {"href": "/ip/item1/101"}, text="Item 1"),
+                            ]),
+                            ControlledMockElement("div", {"data-item-id": "102"}, text="Item 2", children=[
+                                ControlledMockElement("span", {"data-automation-id": "product-title"}, text="Item 2, 12 oz"),
+                                ControlledMockElement("a", {"href": "/ip/item2/102"}, text="Item 2"),
+                            ]),
+                        ]
+                        self.next_button = ControlledMockElement("button", {"aria-label": "Next Page"}, text="Next")
+                        self.pagination_element = ControlledMockElement("nav", {"data-automation-id": "pagination"}, text="Page 1 of 2", children=[self.next_button])
+                    return ControlledMockResponse(200, url)
+
+            # Run 1: Page 1 succeeds, Page 2 fails
+            s1 = WalmartProductionScraper(store, settings, resume=False, crawl_date="2026-11-12", staging_dir=test_staging)
+            await s1.scrape_category(ResumableCategoryPage(fail_page2=True), 0, "Beverages", "Water", "https://www.walmart.com/cp/water")
+            self.assertIn("Beverages > Water", s1.failed_routes)
+            cp1 = s1.checkpoint_mgr.load_checkpoint()
+            self.assertEqual(cp1["current_page"], 2)
+            self.assertEqual(cp1["flushed_records_count"], 2)
+
+            # Run 2: Resume directly on Page 2
+            s2 = WalmartProductionScraper(store, settings, resume=True, crawl_date="2026-11-12", staging_dir=test_staging)
+            p2 = ResumableCategoryPage(fail_page2=False)
+            total_yield = await s2.scrape_category(p2, 0, "Beverages", "Water", "https://www.walmart.com/cp/water")
+
+            self.assertEqual(len(p2.visited), 1)
+            self.assertIn("page=2", p2.visited[0], "Resume must start directly at saved page=2")
+            self.assertEqual(total_yield, 3, "Cumulative yield must include prior 2 staged items + 1 resumed item")
+            self.assertEqual(s2.category_yields["Beverages > Water"], 3)
+            self.assertNotIn("Beverages > Water", s2.failed_routes)
+
+        asyncio.run(_run_test())
+
+        if os.path.exists(test_staging): shutil.rmtree(test_staging)
+        if os.path.exists(test_out): shutil.rmtree(test_out)
+
+    def test_azure_publisher_and_key_vault_gating(self):
+        """
+        Verifies Azure Blob Storage release-before-pointer upload order and Key Vault hydration:
+        - Never uploads uncommitted / non-COMMITTED manifests.
+        - Uploads immutable release artifacts before replacing output/publication_manifest_4012.json pointer.
+        - Hydrates proxy settings from Key Vault secret names documented in azure_deployment.md.
+        """
+        import shutil
+        from unittest.mock import patch, MagicMock
+        from config import ScraperSettings
+        from azure_integration import AzureBlobPublisher, resolve_key_vault_proxy_secrets
+
+        test_dir = ".staging_reg_azure"
+        if os.path.exists(test_dir): shutil.rmtree(test_dir)
+        os.makedirs(test_dir, exist_ok=True)
+
+        prod_file = os.path.join(test_dir, "walmart_4012_2026-11-12.json")
+        evid_file = os.path.join(test_dir, "raw_evidence_4012_2026-11-12.jsonl")
+        with open(prod_file, "w", encoding="utf-8") as f:
+            f.write('[{"upc":"078742118001"}]')
+        with open(evid_file, "w", encoding="utf-8") as f:
+            f.write('{"capture_id":"cap_1"}\n')
+
+        uploaded_order = []
+
+        class MockContainerClient:
+            def create_container(self):
+                pass
+            def upload_blob(self, name, data, overwrite=True):
+                uploaded_order.append(name)
+
+        class MockBlobServiceClient:
+            def get_container_client(self, container_name):
+                return MockContainerClient()
+
+        publisher = AzureBlobPublisher(
+            connection_string="DefaultEndpointsProtocol=https;AccountName=mock;AccountKey=mock==",
+            container_name="walmart-scraper-data",
+            blob_service_client=MockBlobServiceClient()
+        )
+
+        # Uncommitted manifest must be rejected
+        uncommitted = publisher.publish_committed_release({"status": "IN_PROGRESS", "products_file": prod_file, "evidence_file": evid_file})
+        self.assertFalse(uncommitted["uploaded"])
+        self.assertEqual(uploaded_order, [])
+
+        # Committed manifest uploads immutable release artifacts BEFORE pointer blob
+        committed = publisher.publish_committed_release({
+            "status": "COMMITTED",
+            "release_id": "release_4012_2026-11-12_100",
+            "store_number": "4012",
+            "crawl_date": "2026-11-12",
+            "products_file": prod_file,
+            "evidence_file": evid_file,
+        })
+        self.assertTrue(committed["uploaded"])
+        self.assertEqual(uploaded_order[-1], "output/publication_manifest_4012.json", "Manifest pointer blob must be written LAST")
+        self.assertTrue(uploaded_order[0].startswith("releases/release_4012_2026-11-12_100/"))
+
+        # Test Key Vault secret resolution with mocked SDK
+        settings = ScraperSettings()
+        settings.azure_key_vault_url = "https://kv-walmart-scraper.vault.azure.net/"
+        settings.proxy_server = ""
+        settings.proxy_username = ""
+        settings.proxy_password = ""
+
+        mock_secret_client = MagicMock()
+        mock_secret_client.get_secret.side_effect = lambda name: MagicMock(value={
+            "PROXY-SERVER": "http://pr.oxylabs.io:7777",
+            "PROXY-USERNAME": "kv-user",
+            "PROXY-PASSWORD": "kv-password"
+        }[name])
+
+        import azure_integration
+        with patch.object(azure_integration, "AZURE_SDK_AVAILABLE", True), \
+             patch.object(azure_integration, "DefaultAzureCredential", return_value=MagicMock()), \
+             patch.object(azure_integration, "SecretClient", return_value=mock_secret_client):
+            ok = resolve_key_vault_proxy_secrets(settings)
+
+        self.assertTrue(ok)
+        self.assertEqual(settings.proxy_server, "http://pr.oxylabs.io:7777")
+        self.assertEqual(settings.proxy_username, "kv-user")
+        self.assertEqual(settings.proxy_password, "kv-password")
+
+        if os.path.exists(test_dir): shutil.rmtree(test_dir)
+
 # Controlled Mock Classes for Playwright Integration Tests
 class ControlledMockElement:
     def __init__(self, tag="div", attrs=None, text="", children=None):
@@ -2096,12 +2553,18 @@ class ControlledMockElement:
             return True
         if 'weight' in sel and ('weight' in child.attrs.get('data-automation-id', '').lower() or any(u in child.text.lower() for u in ['oz', 'lb', 'ct', 'fl oz'])):
             return True
+        if 'was-price' in sel:
+            return 'was-price' in child.attrs.get('data-automation-id', '').lower() or 'strike' in child.attrs.get('class', '').lower()
+        if 'product-price' in sel or 'current-price' in sel:
+            if any('product-price' in c.attrs.get('data-automation-id', '').lower() for c in self.children):
+                return 'product-price' in child.attrs.get('data-automation-id', '').lower()
+            return 'w_iuh7' in child.attrs.get('class', '').lower()
         if 'product-title' in sel or 'span.w_iuh7' in sel or 'a[link-identifier]' in sel:
             if 'product-title' in child.attrs.get('data-automation-id', '').lower() or 'w_iuh7' in child.attrs.get('class', '').lower() or 'link-identifier' in child.attrs:
                 return True
         if 'a[href*="/ip/"]' in sel and '/ip/' in child.attrs.get('href', ''):
             return True
-        if 'price' in sel or 'current-price' in sel:
+        if 'price' in sel:
             return True
         return False
 
@@ -2128,13 +2591,14 @@ class ControlledMockNetworkResponse:
         return self._text
 
 class ControlledMockPage:
-    def __init__(self, product_elements=None, next_button=None, body_text="", page_title="Walmart Grocery", pagination_element=None, header_element=None):
+    def __init__(self, product_elements=None, next_button=None, body_text="", page_title="Walmart Grocery", pagination_element=None, header_element=None, next_data_json=None):
         self.product_elements = product_elements or []
         self.next_button = next_button
         self._body_text = body_text
         self._page_title = page_title
         self.pagination_element = pagination_element
         self.header_element = header_element
+        self.next_data_json = next_data_json
         self.listeners = {}
 
     def on(self, event, handler):
@@ -2193,6 +2657,11 @@ class ControlledMockPage:
             if self.pagination_element:
                 children.append(self.pagination_element)
             return ControlledMockElement('main', {'role': 'main'}, text=self._body_text, children=children)
+
+        if '__next_data__' in sel:
+            if self.next_data_json:
+                return ControlledMockElement('script', {'id': '__NEXT_DATA__'}, text=self.next_data_json)
+            return None
 
         return None
 

@@ -77,12 +77,26 @@
   - `scraper/test_scraper.py` (Header updated to `d32df9e-rev2`)
   - `src/utils/scraperData.ts` (`AUDIT_METADATA` updated to `d32df9e-rev2`)
 
+### Path 5: Pending Gates Code Hardening (Multi-Page, SSR Pickup, Recovery Preservation, Azure Integration)
+- **Preservation:** All verified pagination fixes (`check_explicit_terminal_evidence`, pre-loop flag initialization, resume-above-cap handling) are preserved intact.
+- **Added Capabilities & Fixes:**
+  - `scraper/azure_integration.py`: Wired Azure Key Vault secret lookup (`resolve_key_vault_proxy_secrets` for `PROXY-SERVER`, `PROXY-USERNAME`, `PROXY-PASSWORD`) and gated `AzureBlobPublisher.publish_committed_release` (uploads immutable release blobs before updating `output/publication_manifest_{store}.json`, strictly rejecting non-`COMMITTED` runs).
+  - `scraper/config.py`: Added `azure_storage_account_url` (`AZURE_STORAGE_ACCOUNT_URL`) and prioritized `AZURE_STORAGE_CONTAINER`.
+  - `scraper/walmart_scraper.py`: Added `_extract_search_payload_evidence` and `_capture_ssr_next_data_if_present` for Next.js SSR `__NEXT_DATA__` store/Pickup payloads alongside GraphQL XHR; initialized mid-category resume yields from staged records; added `SIGINT`/`SIGTERM` interruption handling that blocks promotion while preserving prior committed manifests; added CLI flags (`--store`, `--crawl-date`, `--no-resume`, `--staging-dir`).
+  - `scraper/checkpoint_manager.py`: Updated `reconcile_active_publication()` to restore canonical files keyed by committed `crawl_date` without overwriting across dates.
+- **Additional Integrated Tests (`scraper/test_scraper.py`):**
+  - `test_actual_scrape_category_multi_page_increasing_unique_counts`
+  - `test_actual_store_pickup_ssr_next_data_and_pricing_binding`
+  - `test_failed_or_interrupted_run_preserves_previous_usable_delivery`
+  - `test_multipage_category_interruption_and_resume_yield_preservation`
+  - `test_azure_publisher_and_key_vault_gating`
+
 ---
 
-## 3. Automated Test Suite Verification (47/47 Python Passing + 13/13 TS Passing)
+## 3. Automated Test Suite Verification (56/56 Python Passing + 13/13 TS Passing)
 
-- **Python Test Suite:** `python3 scraper/test_scraper.py`  
-  **Result:** **47 / 47 unit and integration tests passed in 8.256s** (0 errors, 0 failures).
+- **Python Test Suite:** `python3 -m unittest scraper/test_scraper.py`  
+  **Result:** **56 / 56 unit and integration tests passed** (0 errors, 0 failures).
 - **TypeScript Test Suite:** `npx tsx --test src/utils/*.test.ts`  
   **Result:** **13 / 13 tests passed**.
 
@@ -110,11 +124,13 @@
 
 ---
 
-## 5. Offline Fixtures Status & Open Items
+## 5. Offline Fixtures Status & Live Execution Prerequisites
 
-- **Transparent Labeling:** The 524 records and response traces currently present in `public/data/` and the UI dashboard are offline specification fixtures and simulated models. They do not constitute the live 500-product collection demonstration.
-- **Open Items Identified for Supervised Live Verification:**
-  - **Genuine product evidence:** Full live network evidence collection (`.staging/raw_evidence_4012_<date>.jsonl`).
-  - **Full coverage:** Live category traversal across all 21 categories without proxy throttling.
-  - **Observed recovery:** Live crash-interruption simulation and resume on remote worker.
-  - **Azure deployment:** Supervised Azure Container App Job execution post-authorization.
+- **Transparent Labeling:** The 524 records and response traces currently present in `public/data/` and the UI dashboard are offline specification fixtures and simulated models. They do not constitute live Walmart or Azure execution evidence.
+- **Direct Runtime Probe & Open Items for Supervised Live Execution:**
+  - Direct Chromium probe from this container against `walmart.com` encountered `"Robot or human?"` PerimeterX blocking on the unproxied datacenter IP, Python `playwright` is absent locally (`scraper/Dockerfile` installs it cleanly), and no Azure CLI / subscription credentials are configured here.
+  - **Full catalog coverage (Pending live proxy run):** Execute via `scraper/Dockerfile` with `PROXY_*` residential proxy credentials.
+  - **Live Walmart Pickup pricing (Pending live proxy run):** Generates `.staging/raw_evidence_4012_<date>.jsonl` from live store responses.
+  - **Interruption & recovery (Pending live crash/replay):** Live signal interruption + `--store 4012` resume preserving prior committed delivery.
+  - **Azure operation (Pending Azure Container App Job run):** Provision via `scraper/azure_deployment.md` with `AZURE_KEY_VAULT_URL` and `AZURE_STORAGE_ACCOUNT_URL`.
+

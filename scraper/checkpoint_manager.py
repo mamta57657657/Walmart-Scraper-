@@ -334,26 +334,29 @@ class CheckpointManager:
     def reconcile_active_publication(self):
         """
         Crash-recovery startup protocol:
-        Ensures canonical files in output_dir always match the committed manifest pointer.
-        If a hard stop interrupted copying or updating after pointer replacement,
-        this restores canonical files from the immutable committed release artifact.
+        Ensures canonical files in output_dir always match the committed manifest pointer
+        for the committed crawl_date without mislabeling prior deliveries onto a new crawl_date.
         """
         manifest = self.get_active_publication()
         if not manifest or manifest.get("status") != "COMMITTED":
             return
 
+        committed_date = manifest.get("crawl_date") or self.crawl_date
+        committed_target = os.path.join(self.output_dir, f"walmart_{self.store_number}_{committed_date}.json")
+        committed_evidence = os.path.join(self.output_dir, f"raw_evidence_{self.store_number}_{committed_date}.jsonl")
+
         prod_path = manifest.get("products_file")
         evid_path = manifest.get("evidence_file")
         if prod_path and os.path.exists(prod_path):
             try:
-                if not os.path.exists(self.production_target_file) or os.path.getsize(self.production_target_file) != os.path.getsize(prod_path):
-                    shutil.copy2(prod_path, self.production_target_file)
+                if not os.path.exists(committed_target) or os.path.getsize(committed_target) != os.path.getsize(prod_path):
+                    shutil.copy2(prod_path, committed_target)
             except Exception as e:
                 logger.warning(f"Could not reconcile production target file: {e}")
         if evid_path and os.path.exists(evid_path):
             try:
-                if not os.path.exists(self.production_evidence_file) or os.path.getsize(self.production_evidence_file) != os.path.getsize(evid_path):
-                    shutil.copy2(evid_path, self.production_evidence_file)
+                if not os.path.exists(committed_evidence) or os.path.getsize(committed_evidence) != os.path.getsize(evid_path):
+                    shutil.copy2(evid_path, committed_evidence)
             except Exception as e:
                 logger.warning(f"Could not reconcile production evidence file: {e}")
 

@@ -11,6 +11,7 @@ import json
 import logging
 import os
 import re
+import signal
 import sys
 import time
 from datetime import datetime
@@ -40,6 +41,7 @@ try:
         REQUIRED_FIELD_ORDER
     )
     from checkpoint_manager import CheckpointManager, sanitize_captured_request
+    from azure_integration import resolve_key_vault_proxy_secrets, AzureBlobPublisher
 except ImportError:
     from scraper.config import StoreConfig, ScraperSettings, DEFAULT_STORES, get_settings
     from scraper.validation import (
@@ -51,6 +53,7 @@ except ImportError:
         REQUIRED_FIELD_ORDER
     )
     from scraper.checkpoint_manager import CheckpointManager, sanitize_captured_request
+    from scraper.azure_integration import resolve_key_vault_proxy_secrets, AzureBlobPublisher
 
 # Recognized affirmative fulfillment modes (reject substrings like NOT_PICKUP or PICKUP_UNAVAILABLE)
 RECOGNIZED_AFFIRMATIVE_PICKUP_MODES = {
@@ -355,6 +358,138 @@ class WalmartProductionScraper:
             return proxy
         return None
 
+    def _extract_search_payload_evidence(
+        self,
+        j_data: Dict[str, Any],
+        endpoint_url: str,
+        request_data: Optional[Dict[str, Any]] = None
+    ) -> bool:
+        """
+        Extracts store affinity, fulfillment mode, and item-level price/availability
+        from GraphQL XHR payloads or Next.js SSR __NEXT_DATA__ payloads, persisting
+        sanitized raw evidence to disk.
+        Returns True if target store_id and exact affirmative PICKUP fulfillment match.
+        """
+        if not isinstance(j_data, dict):
+            return False
+
+        page_props = j_data.get("props", {}).get("pageProps", {}) if isinstance(j_data.get("props"), dict) else {}
+        initial_data = page_props.get("initialData", {}) if isinstance(page_props, dict) else {}
+        data_root = j_data.get("data", {}) if isinstance(j_data.get("data"), dict) else {}
+
+        search_res = (
+            data_root.get("searchResult")
+            or data_root.get("browse")
+            or (initial_data.get("searchResult") if isinstance(initial_data, dict) else None)
+            or (initial_data.get("browse") if isinstance(initial_data, dict) else None)
+            or {}
+        )
+        if not isinstance(search_res, dict):
+            search_res = {}
+
+        stacks = search_res.get("itemStacks") or ([search_res.get("itemStack")] if search_res.get("itemStack") else [])
+        if not stacks:
+            stacks = []
+
+        # Rule 1: Keep unknown context unknown! Never fill missing storeId or fulfillmentMode with target defaults
+        loc_ctx = page_props.get("locationContext", {}) if isinstance(page_props, dict) else {}
+        pickup_store = loc_ctx.get("pickupStore", {}) if isinstance(loc_ctx, dict) else {}
+
+        observed_store_id = (
+            search_res.get("storeId")
+            or data_root.get("storeId")
+            or (pickup_store.get("storeId") if isinstance(pickup_store, dict) else None)
+        )
+        observed_fulfillment_mode = (
+            search_res.get("fulfillmentMode")
+            or data_root.get("fulfillmentMode")
+            or (loc_ctx.get("intent") if isinstance(loc_ctx, dict) else None)
+        )
+
+        verified = False
+        if observed_store_id and str(observed_store_id) == str(self.store.store_number):
+            if is_exact_affirmative_fulfillment(observed_fulfillment_mode):
+                verified = True
+
+        capture_id = self.checkpoint_mgr.append_raw_evidence(
+            endpoint=endpoint_url,
+            request_data=request_data or {"url": endpoint_url, "method": "GET", "headers": {}},
+            response_payload=j_data
+        )
+
+        for stk in stacks:
+            if not isinstance(stk, dict):
+                continue
+            for itm in stk.get("items", []):
+                if not isinstance(itm, dict):
+                    continue
+                itm_id = str(itm.get("usItemId") or itm.get("id") or "").strip()
+                if not itm_id:
+                    continue
+
+                f_info = itm.get("fulfillment")
+                pickup_avail = None
+                instore_stock = None
+                if isinstance(f_info, dict):
+                    pickup_avail = f_info.get("pickupAvailable")
+                    instore_stock = f_info.get("inStoreStock")
+                elif isinstance(itm.get("availabilityStatusV2"), dict):
+                    avail_val = itm["availabilityStatusV2"].get("value")
+                    if avail_val == "IN_STOCK":
+                        pickup_avail = True
+                        instore_stock = True
+                    elif avail_val in {"OUT_OF_STOCK", "NOT_AVAILABLE"}:
+                        pickup_avail = False
+                        instore_stock = False
+
+                item_store = itm.get("storeId") or observed_store_id
+                item_fulfill = itm.get("fulfillmentMode") or observed_fulfillment_mode
+
+                p_info = itm.get("priceInfo") or {}
+                line_p = (
+                    p_info.get("linePrice")
+                    or (p_info.get("currentPrice", {}) or {}).get("priceString")
+                    or itm.get("price")
+                    or ""
+                )
+
+                self.current_page_intercepted_items[itm_id] = {
+                    "capture_id": capture_id,
+                    "page_number": self.current_page_number,
+                    "page_url": self.current_page_url,
+                    "store_id": str(item_store) if item_store is not None else None,
+                    "fulfillment_mode": str(item_fulfill) if item_fulfill is not None else None,
+                    "pickup_available": pickup_avail,
+                    "in_store_stock": instore_stock,
+                    "observed_sale_price": str(line_p) if line_p else "",
+                }
+
+        return verified
+
+    async def _capture_ssr_next_data_if_present(self, page: Page, page_url: str) -> bool:
+        """
+        Captures SSR Next.js __NEXT_DATA__ payload when initial page navigation embeds
+        catalog & store/Pickup data directly in HTML rather than an XHR response.
+        """
+        if not page:
+            return False
+        try:
+            next_data_el = await page.query_selector('script#__NEXT_DATA__')
+            if not next_data_el:
+                return False
+            raw_json = await next_data_el.inner_text()
+            if not raw_json:
+                return False
+            j_data = json.loads(raw_json)
+            return self._extract_search_payload_evidence(
+                j_data=j_data,
+                endpoint_url=f"{page_url}#__NEXT_DATA__",
+                request_data={"url": page_url, "method": "GET", "headers": {}}
+            )
+        except Exception as ex:
+            logger.debug(f"[SSR __NEXT_DATA__ PARSE] Skipped or failed: {ex}")
+            return False
+
     async def initialize_store_context(self, context: BrowserContext, page: Page) -> bool:
         """
         Sets store location cookies and verifies local in-store/pickup fulfillment context.
@@ -383,25 +518,6 @@ class WalmartProductionScraper:
                     text_data = await resp.text()
                     try:
                         j_data = json.loads(text_data)
-                        search_res = j_data.get("data", {}).get("searchResult", {}) or j_data.get("data", {}).get("browse", {})
-                        stacks = search_res.get("itemStacks", []) or [search_res.get("itemStack", {})]
-
-                        # Rule 1: Keep unknown context unknown! Never fill missing storeId or fulfillmentMode with target defaults
-                        observed_store_id = search_res.get("storeId")
-                        if observed_store_id is None:
-                            observed_store_id = j_data.get("data", {}).get("storeId")
-
-                        observed_fulfillment_mode = search_res.get("fulfillmentMode")
-                        if observed_fulfillment_mode is None:
-                            observed_fulfillment_mode = j_data.get("data", {}).get("fulfillmentMode")
-
-                        # Observed store and exact affirmative fulfillment verification:
-                        # Requires exact store ID match and exact recognized affirmative fulfillment (rejects NOT_PICKUP / PICKUP_UNAVAILABLE)
-                        if observed_store_id and str(observed_store_id) == str(self.store.store_number):
-                            if is_exact_affirmative_fulfillment(observed_fulfillment_mode):
-                                price_bearing_response_verified = True
-
-                        # Sanitize captured request including Authorization tokens and cookies
                         raw_headers = dict(resp.request.headers) if hasattr(resp, "request") and hasattr(resp.request, "headers") else {}
                         captured_req = {
                             "url": resp.request.url if hasattr(resp, "request") else resp.url,
@@ -409,39 +525,8 @@ class WalmartProductionScraper:
                             "headers": raw_headers,
                             "post_data": resp.request.post_data if hasattr(resp, "request") and hasattr(resp.request, "post_data") else None
                         }
-
-                        # Append raw evidence and obtain traceable capture ID
-                        capture_id = self.checkpoint_mgr.append_raw_evidence(
-                            endpoint=resp.url,
-                            request_data=captured_req,
-                            response_payload=j_data
-                        )
-
-                        for stk in stacks:
-                            for itm in stk.get("items", []):
-                                itm_id = str(itm.get("usItemId") or itm.get("id") or "").strip()
-                                if itm_id:
-                                    f_info = itm.get("fulfillment")
-                                    pickup_avail = None
-                                    instore_stock = None
-                                    if isinstance(f_info, dict):
-                                        pickup_avail = f_info.get("pickupAvailable")
-                                        instore_stock = f_info.get("inStoreStock")
-
-                                    p_info = itm.get("priceInfo") or {}
-                                    line_p = p_info.get("linePrice") or p_info.get("currentPrice", {}).get("priceString") or itm.get("price") or ""
-
-                                    self.current_page_intercepted_items[itm_id] = {
-                                        "capture_id": capture_id,
-                                        "page_number": self.current_page_number,
-                                        "page_url": self.current_page_url,
-                                        "store_id": str(observed_store_id) if observed_store_id is not None else None,
-                                        "fulfillment_mode": str(observed_fulfillment_mode) if observed_fulfillment_mode is not None else None,
-                                        "pickup_available": pickup_avail,
-                                        "in_store_stock": instore_stock,
-                                        "observed_sale_price": str(line_p) if line_p else "",
-                                    }
-
+                        if self._extract_search_payload_evidence(j_data, resp.url, captured_req):
+                            price_bearing_response_verified = True
                     except Exception as parse_ex:
                         logger.debug(f"[RESPONSE PARSE] Error processing payload: {parse_ex}")
             except Exception as e:
@@ -460,6 +545,10 @@ class WalmartProductionScraper:
                 return False
 
             await asyncio.sleep(1.5)
+
+            if not price_bearing_response_verified:
+                if await self._capture_ssr_next_data_if_present(page, "https://www.walmart.com"):
+                    price_bearing_response_verified = True
 
             current_cookies = await context.cookies()
             cookie_map = {c["name"]: c["value"] for c in current_cookies}
@@ -509,10 +598,15 @@ class WalmartProductionScraper:
         natural_completion = False
         route_failed = False
 
-        # Resume logic
+        # Resume logic (preserve prior staged unique-item yield when resuming mid-category)
         if self.checkpoint_state.get("category_index") == cat_index:
             current_page = max(1, self.checkpoint_state.get("current_page", 1))
-            logger.info(f"[CHECKPOINT RESUME] Resuming category '{sub_category}' from page {current_page}")
+            prior_staged = sum(
+                1 for r in self.scraped_records
+                if r.get("category") == category and r.get("sub_category") == sub_category
+            )
+            category_count = prior_staged
+            logger.info(f"[CHECKPOINT RESUME] Resuming category '{sub_category}' from page {current_page} (prior staged items: {prior_staged})")
 
         # Explicit handling for resume beyond a safety cap:
         # If saved current_page already exceeds max_pages_per_category without natural completion,
@@ -601,6 +695,9 @@ class WalmartProductionScraper:
                         self.failed_routes.append(route_name)
                     route_failed = True
                     break
+
+            if not self.current_page_intercepted_items:
+                await self._capture_ssr_next_data_if_present(page, paged_url)
 
             page_batch: List[Dict[str, str]] = []
 
@@ -994,79 +1091,129 @@ class WalmartProductionScraper:
                 "error": "PLAYWRIGHT_NOT_INSTALLED"
             }
 
-        async with async_playwright() as p:
-            proxy = self._get_proxy_dict()
-            browser = await p.chromium.launch(
-                headless=self.settings.headless,
-                proxy=proxy,
-                args=[
-                    "--no-sandbox",
-                    "--disable-blink-features=AutomationControlled",
-                    "--disable-infobars"
-                ]
-            )
+        # Hydrate proxy credentials from Azure Key Vault if configured
+        resolve_key_vault_proxy_secrets(self.settings)
 
-            context = await browser.new_context(
-                viewport={"width": 1440, "height": 900},
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-            )
+        interrupted_signal: Optional[str] = None
+        previous_handlers: Dict[int, Any] = {}
 
-            page = await context.new_page()
+        def _handle_stop_signal(signum, frame):
+            nonlocal interrupted_signal
+            interrupted_signal = f"SIGNAL_{signum}"
+            logger.warning(f"[INTERRUPTION SIGNAL] Received {interrupted_signal}; halting safely and preserving checkpoint & prior delivery.")
 
-            # Initialize store context with strict verification
-            context_ok = await self.initialize_store_context(context, page)
-            if not context_ok:
-                logger.error("[ABORT RUN] Could not verify store context and fulfillment locks. Halting scraper to prevent unverified publication.")
-                await browser.close()
-                return {
-                    "success": False,
-                    "reason": "Store context and fulfillment verification failed.",
-                    "total_records": len(self.scraped_records),
-                    "publication_gated": True
-                }
+        try:
+            for sig in (signal.SIGINT, signal.SIGTERM):
+                previous_handlers[sig] = signal.getsignal(sig)
+                signal.signal(sig, _handle_stop_signal)
+        except Exception:
+            previous_handlers = {}
 
-            # Load taxonomy CSV
-            csv_path = self.settings.categories_csv_path
-            if not os.path.exists(csv_path):
-                csv_path = os.path.join(os.path.dirname(__file__), "Walmart_Category_URLs.csv")
+        categories_to_scrape: List[Dict[str, str]] = []
+        required_category_names: List[str] = []
+        browser = None
 
-            categories_to_scrape = []
-            if os.path.exists(csv_path):
-                with open(csv_path, mode="r", encoding="utf-8") as f:
-                    reader = csv.DictReader(f)
-                    for row in reader:
-                        categories_to_scrape.append(row)
+        try:
+            async with async_playwright() as p:
+                proxy = self._get_proxy_dict()
+                browser = await p.chromium.launch(
+                    headless=self.settings.headless,
+                    proxy=proxy,
+                    args=[
+                        "--no-sandbox",
+                        "--disable-blink-features=AutomationControlled",
+                        "--disable-infobars"
+                    ]
+                )
 
-            logger.info(f"Loaded {len(categories_to_scrape)} category/subcategory endpoints.")
+                context = await browser.new_context(
+                    viewport={"width": 1440, "height": 900},
+                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+                )
 
-            required_category_names = [f"{c.get('category')} > {c.get('sub_category')}" for c in categories_to_scrape]
+                page = await context.new_page()
 
-            # Resume execution: Iterate through categories, skipping already verified completed categories
-            # and retrying any unresolved or previously failed routes
-            for idx, item in enumerate(categories_to_scrape):
-                cat = item.get("category", "")
-                sub_cat = item.get("sub_category", "")
-                url = item.get("walmart_url", "")
-                canary = item.get("canary_upc", "")
-                route_key = f"{cat} > {sub_cat}"
+                # Initialize store context with strict verification
+                context_ok = await self.initialize_store_context(context, page)
+                if not context_ok:
+                    logger.error("[ABORT RUN] Could not verify store context and fulfillment locks. Halting scraper to prevent unverified publication.")
+                    await browser.close()
+                    browser = None
+                    return {
+                        "success": False,
+                        "reason": "Store context and fulfillment verification failed.",
+                        "total_records": len(self.scraped_records),
+                        "publication_gated": True
+                    }
 
-                # If category already durably completed and not marked failed, skip it
-                if route_key in self.category_yields and route_key not in self.failed_routes:
-                    logger.info(f"[RESUME SKIP] Route '{route_key}' already durably completed ({self.category_yields[route_key]} items).")
-                    continue
+                # Load taxonomy CSV
+                csv_path = self.settings.categories_csv_path
+                if not os.path.exists(csv_path):
+                    csv_path = os.path.join(os.path.dirname(__file__), "Walmart_Category_URLs.csv")
 
-                if url:
-                    try:
-                        await self.scrape_category(page, idx, cat, sub_cat, url, canary_upc=canary)
-                        # If route was in failed_routes and succeeded, remove from failed_routes
-                        if route_key in self.category_yields and route_key in self.failed_routes:
-                            self.failed_routes.remove(route_key)
-                    except Exception as route_err:
-                        logger.error(f"[ROUTE FAILURE] Route '{route_key}' encountered unrecovered failure: {route_err}")
+                if os.path.exists(csv_path):
+                    with open(csv_path, mode="r", encoding="utf-8") as f:
+                        reader = csv.DictReader(f)
+                        for row in reader:
+                            categories_to_scrape.append(row)
+
+                logger.info(f"Loaded {len(categories_to_scrape)} category/subcategory endpoints.")
+                required_category_names = [f"{c.get('category')} > {c.get('sub_category')}" for c in categories_to_scrape]
+
+                # Resume execution: Iterate through categories, skipping already verified completed categories
+                # and retrying any unresolved or previously failed routes
+                for idx, item in enumerate(categories_to_scrape):
+                    if interrupted_signal:
+                        route_key = f"{item.get('category', '')} > {item.get('sub_category', '')}"
                         if route_key not in self.failed_routes:
                             self.failed_routes.append(route_key)
+                        break
 
-            await browser.close()
+                    cat = item.get("category", "")
+                    sub_cat = item.get("sub_category", "")
+                    url = item.get("walmart_url", "")
+                    canary = item.get("canary_upc", "")
+                    route_key = f"{cat} > {sub_cat}"
+
+                    # If category already durably completed and not marked failed, skip it
+                    if route_key in self.category_yields and route_key not in self.failed_routes:
+                        logger.info(f"[RESUME SKIP] Route '{route_key}' already durably completed ({self.category_yields[route_key]} items).")
+                        continue
+
+                    if url:
+                        try:
+                            await self.scrape_category(page, idx, cat, sub_cat, url, canary_upc=canary)
+                            # If route was in failed_routes and succeeded, remove from failed_routes
+                            if route_key in self.category_yields and route_key in self.failed_routes:
+                                self.failed_routes.remove(route_key)
+                        except (KeyboardInterrupt, asyncio.CancelledError) as int_err:
+                            interrupted_signal = type(int_err).__name__
+                            if route_key not in self.failed_routes:
+                                self.failed_routes.append(route_key)
+                            logger.warning(f"[RUN INTERRUPTED] Route '{route_key}' interrupted by {interrupted_signal}. Preserving checkpoint.")
+                            break
+                        except Exception as route_err:
+                            logger.error(f"[ROUTE FAILURE] Route '{route_key}' encountered unrecovered failure: {route_err}")
+                            if route_key not in self.failed_routes:
+                                self.failed_routes.append(route_key)
+
+                if browser is not None:
+                    await browser.close()
+                    browser = None
+        except (KeyboardInterrupt, asyncio.CancelledError) as int_err:
+            interrupted_signal = interrupted_signal or type(int_err).__name__
+            logger.warning(f"[RUN INTERRUPTED] Scraper run aborted by {interrupted_signal}; preserving staging checkpoint and previous delivery.")
+        finally:
+            try:
+                for sig, prev in previous_handlers.items():
+                    signal.signal(sig, prev)
+            except Exception:
+                pass
+            if browser is not None:
+                try:
+                    await browser.close()
+                except Exception:
+                    pass
 
         # Compute resume pointer: points to earliest unresolved/failed category index
         # Never advance category_index to total count when unresolved work remains!
@@ -1077,13 +1224,15 @@ class WalmartProductionScraper:
                 earliest_unresolved_idx = i
                 break
 
-        final_cat_idx = earliest_unresolved_idx if len(self.failed_routes) > 0 else len(categories_to_scrape)
-        final_status = "COMPLETED" if len(self.failed_routes) == 0 else "PARTIAL_WITH_FAILURES"
+        has_unresolved = (len(self.failed_routes) > 0) or (earliest_unresolved_idx < len(categories_to_scrape)) or (interrupted_signal is not None)
+        final_cat_idx = earliest_unresolved_idx if has_unresolved else len(categories_to_scrape)
+        final_status = "INTERRUPTED" if interrupted_signal else ("PARTIAL_WITH_FAILURES" if has_unresolved else "COMPLETED")
 
         # Commit final completed or partial checkpoint state with failed_routes
+        preserved_page = self.checkpoint_mgr.load_checkpoint().get("current_page", 1) if has_unresolved else 1
         self.checkpoint_mgr.save_checkpoint(
             category_index=final_cat_idx,
-            current_page=1,
+            current_page=preserved_page,
             completed_categories=list(self.category_yields.keys()),
             flushed_count=len(self.scraped_records),
             seen_signatures=list(self.seen_signatures),
@@ -1098,15 +1247,30 @@ class WalmartProductionScraper:
         runtime_str = f"{hours}h {minutes}m" if hours > 0 else f"{minutes}m {seconds}s"
 
         # Incomplete-Run Publication Protection Gate Evaluation with atomic committed pointer
-        is_promoted = self.checkpoint_mgr.promote_staging_to_production(
-            min_threshold=self.settings.min_expected_records_per_run,
-            required_categories=required_category_names,
-            failed_routes=self.failed_routes,
-            store_fulfillment_verified=self.store_fulfillment_verified
-        )
+        if interrupted_signal:
+            is_promoted = False
+            logger.warning(f"[PROTECTION ACTIVE] Run interrupted ({interrupted_signal}); previous committed delivery preserved intact.")
+        else:
+            is_promoted = self.checkpoint_mgr.promote_staging_to_production(
+                min_threshold=self.settings.min_expected_records_per_run,
+                required_categories=required_category_names,
+                failed_routes=self.failed_routes,
+                store_fulfillment_verified=self.store_fulfillment_verified
+            )
+
+        azure_pub_result: Dict[str, Any] = {"uploaded": False, "reason": "Not promoted or Azure not configured"}
+        if is_promoted:
+            publisher = AzureBlobPublisher(
+                connection_string=self.settings.azure_storage_connection_string,
+                account_url=self.settings.azure_storage_account_url,
+                container_name=self.settings.azure_container_name,
+            )
+            if publisher.is_configured():
+                azure_pub_result = publisher.publish_committed_release(self.checkpoint_mgr.get_active_publication())
 
         return {
             "success": is_promoted,
+            "status": final_status,
             "total_records": len(self.scraped_records),
             "runtime": runtime_str,
             "store": f"Walmart #{self.store.store_number}",
@@ -1115,11 +1279,31 @@ class WalmartProductionScraper:
             "failed_routes": self.failed_routes,
             "manifest_file": self.checkpoint_mgr.manifest_file,
             "output_file": self.checkpoint_mgr.production_target_file,
-            "publication_gated": not is_promoted
+            "publication_gated": not is_promoted,
+            "azure_publication": azure_pub_result,
         }
 
 if __name__ == "__main__":
-    store = DEFAULT_STORES[0]
-    scraper = WalmartProductionScraper(store)
+    import argparse
+    try:
+        from config import get_store_by_target
+    except ImportError:
+        from scraper.config import get_store_by_target
+
+    parser = argparse.ArgumentParser(description="Production-Ready Walmart Scraper")
+    parser.add_argument("--store", default=os.getenv("STORE_TARGET", DEFAULT_STORES[0].store_number), help="Store number, state code, or ZIP code")
+    parser.add_argument("--crawl-date", default=None, help="Crawl date YYYY-MM-DD")
+    parser.add_argument("--no-resume", action="store_true", help="Start fresh instead of resuming from checkpoint")
+    parser.add_argument("--staging-dir", default=".staging", help="Staging and checkpoint directory")
+    args = parser.parse_args()
+
+    store = get_store_by_target(args.store)
+    scraper = WalmartProductionScraper(
+        store,
+        resume=not args.no_resume,
+        staging_dir=args.staging_dir,
+        crawl_date=args.crawl_date,
+    )
     result = asyncio.run(scraper.run())
     print("Scraper Execution Completed:", json.dumps(result, indent=2))
+

@@ -107,8 +107,11 @@ class ScraperSettings:
     azure_storage_connection_string: str = field(
         default_factory=lambda: os.getenv("AZURE_STORAGE_CONNECTION_STRING", "")
     )
+    azure_storage_account_url: str = field(
+        default_factory=lambda: os.getenv("AZURE_STORAGE_ACCOUNT_URL", "")
+    )
     azure_container_name: str = field(
-        default_factory=lambda: os.getenv("AZURE_CONTAINER_NAME", "walmart-scraper-data")
+        default_factory=lambda: os.getenv("AZURE_STORAGE_CONTAINER") or os.getenv("AZURE_CONTAINER_NAME", "walmart-scraper-data")
     )
     azure_key_vault_url: str = field(
         default_factory=lambda: os.getenv("AZURE_KEY_VAULT_URL", "")

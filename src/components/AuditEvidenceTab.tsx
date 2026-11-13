@@ -260,13 +260,13 @@ export function AuditEvidenceTab({
             ))}
           </div>
 
-          {/* Technical Review Status Matrix (Uncapped Pagination, Interruption/Resume, Azure Execution) */}
+          {/* Technical Review Status Matrix */}
           <div className="pt-2 border-t border-sky-200">
             <div className="bg-white p-3 rounded-lg border border-sky-200 shadow-2xs space-y-2.5">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <span className="font-extrabold text-[#00386c] text-[11px] uppercase tracking-wider flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span>Technical Review Status & Milestone Schedule (Per Reviewer Feedback)</span>
+                  <span>Current Project Status &amp; Acceptance Gates</span>
                 </span>
                 <button
                   onClick={() => setShowEvidenceIndex(!showEvidenceIndex)}
@@ -277,38 +277,70 @@ export function AuditEvidenceTab({
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-[10.5px]">
-                <div className="p-2.5 rounded bg-emerald-50/70 border border-emerald-200 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-emerald-900">1. Pagination Hardening (rev2)</span>
-                    <span className="bg-emerald-600 text-white font-bold px-1.5 py-0.2 rounded text-[9px]">CORRECTED</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 text-[10.5px]">
+                <div className="p-2.5 rounded bg-emerald-50/70 border border-emerald-200 space-y-1 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="font-bold text-emerald-900">Pagination corrections</span>
+                      <span className="bg-emerald-600 text-white font-bold px-1.5 py-0.2 rounded text-[9px] shrink-0">PASSED</span>
+                    </div>
+                    <p className="text-slate-600 text-[10px] leading-tight mt-1">
+                      Exact page-number parsing and category-scoped Next/count terminal evidence verified via source inspection and focused regressions.
+                    </p>
                   </div>
-                  <p className="text-slate-600 text-[10px] leading-tight">
-                    Explicit source terminal/total evidence required; short page alone (&lt;24) is not proof of exhaustion. Completion states initialized before loop to handle safety cap resume explicitly without UnboundLocalError.
-                  </p>
-                  <div className="text-emerald-800 font-semibold text-[9.5px]">Verified: Controlled mock integration tests passing</div>
+                  <div className="text-emerald-800 font-semibold text-[9.5px] pt-1">56/56 Python + 13/13 TS tests passing</div>
                 </div>
 
-                <div className="p-2.5 rounded bg-emerald-50/70 border border-emerald-200 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-emerald-900">2. Interruption, Resume &amp; Full run() Test</span>
-                    <span className="bg-emerald-600 text-white font-bold px-1.5 py-0.2 rounded text-[9px]">COMPLETED</span>
+                <div className="p-2.5 rounded bg-amber-50/70 border border-amber-200 space-y-1 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="font-bold text-amber-950">Full catalog coverage</span>
+                      <span className="bg-amber-600 text-white font-bold px-1.5 py-0.2 rounded text-[9px] shrink-0">PENDING</span>
+                    </div>
+                    <p className="text-slate-600 text-[10px] leading-tight mt-1">
+                      Multi-page deduplication &amp; sequential traversal verified in integration tests; live 21-category run blocked here by unproxied datacenter perimeter check.
+                    </p>
                   </div>
-                  <p className="text-slate-600 text-[10px] leading-tight">
-                    <code className="font-mono text-emerald-950 font-semibold">checkpoint_manager.py</code> and <code className="font-mono">test_scraper.py</code> test actual run() execution with an interrupted failed route on Run 1 and resume recovery to production on Run 2.
-                  </p>
-                  <div className="text-emerald-800 font-semibold text-[9.5px]">Verified: 47/47 Python + 13/13 Node unit tests passing</div>
+                  <div className="text-amber-800 font-semibold text-[9.5px] pt-1">Code ready • Needs residential proxy</div>
                 </div>
 
-                <div className="p-2.5 rounded bg-amber-50/70 border border-amber-200 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-amber-950">3. Live Run, Recovery &amp; Azure</span>
-                    <span className="bg-amber-600 text-white font-bold px-1.5 py-0.2 rounded text-[9px]">OPEN / SCHEDULED</span>
+                <div className="p-2.5 rounded bg-amber-50/70 border border-amber-200 space-y-1 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="font-bold text-amber-950">Live Walmart Pickup pricing</span>
+                      <span className="bg-amber-600 text-white font-bold px-1.5 py-0.2 rounded text-[9px] shrink-0">PENDING</span>
+                    </div>
+                    <p className="text-slate-600 text-[10px] leading-tight mt-1">
+                      SSR __NEXT_DATA__ &amp; GraphQL PICKUP binding verified in tests; live store #4012 capture requires unblocked residential proxy IP.
+                    </p>
                   </div>
-                  <p className="text-slate-600 text-[10px] leading-tight">
-                    Genuine product evidence, full 21-category coverage, observed recovery on remote worker, and Azure Container App Job deployment remain open for supervised execution post-authorization.
-                  </p>
-                  <div className="text-amber-800 font-semibold text-[9.5px]">Open Items: Genuine evidence &amp; Azure post-authorization</div>
+                  <div className="text-amber-800 font-semibold text-[9.5px] pt-1">Offline fixtures &amp; SSR path verified</div>
+                </div>
+
+                <div className="p-2.5 rounded bg-amber-50/70 border border-amber-200 space-y-1 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="font-bold text-amber-950">Interruption and recovery</span>
+                      <span className="bg-amber-600 text-white font-bold px-1.5 py-0.2 rounded text-[9px] shrink-0">PENDING</span>
+                    </div>
+                    <p className="text-slate-600 text-[10px] leading-tight mt-1">
+                      SIGINT/SIGTERM checkpointing, mid-category page resume &amp; cross-date delivery preservation verified; live crash replay pending.
+                    </p>
+                  </div>
+                  <div className="text-amber-800 font-semibold text-[9.5px] pt-1">Code &amp; manifest protection verified</div>
+                </div>
+
+                <div className="p-2.5 rounded bg-amber-50/70 border border-amber-200 space-y-1 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="font-bold text-amber-950">Azure operation</span>
+                      <span className="bg-amber-600 text-white font-bold px-1.5 py-0.2 rounded text-[9px] shrink-0">PENDING</span>
+                    </div>
+                    <p className="text-slate-600 text-[10px] leading-tight mt-1">
+                      Key Vault secret lookup &amp; gated Azure Blob release-before-pointer upload added in azure_integration.py; Container App execution pending.
+                    </p>
+                  </div>
+                  <div className="text-amber-800 font-semibold text-[9.5px] pt-1">Container App Job unexecuted</div>
                 </div>
               </div>
 
@@ -336,11 +368,10 @@ export function AuditEvidenceTab({
 
                     <div className="font-bold text-white mt-2">Revision d32df9e-rev2 Technical Audit Resolutions:</div>
                     <ul className="list-disc pl-5 space-y-1 text-slate-300 text-[11px]">
-                      <li><strong>Exact Page Parsing & Scoped Terminal Controls:</strong> scrape_category parses page numbers exactly (e.g. &apos;Page 1 of 1&apos; vs &apos;Page 1 of 10&apos;) so &apos;Page 1 of 10&apos; does not trigger completion. Next buttons and total counts are scoped strictly to category results pagination and headers, rejecting unrelated carousels, modals, and cart counts. Regressions through actual <code className="font-mono text-emerald-300">scrape_category</code> path for Page 1 of 10, an unrelated disabled Next/count, and a genuine last page are fully verified.</li>
-                      <li><strong>Safety Cap Initialization:</strong> Completion and failure states are initialized prior to the loop; resuming beyond max_pages_per_category safely preserves the route in failed_routes without UnboundLocalError.</li>
-                      <li><strong>End-to-End run() Testing:</strong> Added test_actual_run_method_with_interrupted_failed_route_and_resumption in test_scraper.py testing full run execution, store lock, gate blocking on partial failures, and resume promotion.</li>
-                      <li><strong>Source Headers Synchronized:</strong> Reconciled headers across all 11 modules to commit d32df9e2a47dc2beb9ce4a03c16249342e92b5e4 (d32df9e-rev2).</li>
-                      <li><strong>Open Items Disclosed:</strong> Genuine product evidence, full coverage, observed recovery, and Azure deployment remain open for supervised live verification.</li>
+                      <li><strong>Exact Page Parsing &amp; Scoped Terminal Controls:</strong> scrape_category parses page numbers exactly (e.g. &apos;Page 1 of 1&apos; vs &apos;Page 1 of 10&apos;) so &apos;Page 1 of 10&apos; does not trigger completion. Next buttons and total counts are scoped strictly to category results pagination and headers, rejecting unrelated carousels, modals, and cart counts.</li>
+                      <li><strong>SSR __NEXT_DATA__ &amp; Multi-Page Yield Accounting:</strong> Extracts store/Pickup context from both GraphQL XHR and Next.js SSR payloads, deduplicates items across sequential pages, and initializes mid-category resume yields from staged records.</li>
+                      <li><strong>Prior Delivery Preservation &amp; Azure Release Upload:</strong> Reconciles canonical outputs by committed crawl_date, handles SIGINT/SIGTERM cleanly without promotion, and wires Key Vault proxy resolution + Azure Blob release-before-pointer upload in <code className="font-mono text-emerald-300">scraper/azure_integration.py</code> (56/56 Python tests passing).</li>
+                      <li><strong>Open Live Gates Disclosed:</strong> Live multi-page Walmart coverage, live Store #4012 Pickup capture, live crash replay, and Azure Container App Job logs remain pending residential proxy + Azure credentials.</li>
                     </ul>
                   </div>
                 </div>
