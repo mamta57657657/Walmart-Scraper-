@@ -332,7 +332,14 @@ def scan_workspace_and_write_status(
     status_output_path: str = os.path.join("public", "data", "live_gate_status.json"),
 ) -> Dict[str, Any]:
     ndjson_text = ""
-    if ndjson_path and os.path.exists(ndjson_path):
+    live_ndjson_paths = sorted(glob.glob(os.path.join(output_dir, "live_execution_*.ndjson")))
+    if live_ndjson_paths:
+        ndjson_parts: List[str] = []
+        for path in live_ndjson_paths:
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                ndjson_parts.append(f.read())
+        ndjson_text = "\n".join(ndjson_parts)
+    elif ndjson_path and os.path.exists(ndjson_path):
         with open(ndjson_path, "r", encoding="utf-8", errors="ignore") as f:
             ndjson_text = f.read()
 

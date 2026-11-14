@@ -1093,6 +1093,19 @@ class WalmartProductionScraper:
                 "error": "PLAYWRIGHT_NOT_INSTALLED"
             }
 
+        live_run_ndjson_handler: Optional[NDJSONFileHandler] = None
+        if "unittest" not in sys.modules:
+            try:
+                os.makedirs(self.settings.output_directory, exist_ok=True)
+                live_ndjson_path = os.path.join(
+                    self.settings.output_directory,
+                    f"live_execution_{self.store.store_number}_{self.crawl_date}.ndjson",
+                )
+                live_run_ndjson_handler = NDJSONFileHandler(live_ndjson_path, mode="a", encoding="utf-8")
+                logger.addHandler(live_run_ndjson_handler)
+            except Exception as nd_err:
+                logger.debug(f"[NDJSON HANDLER] Could not attach run-scoped live NDJSON handler: {nd_err}")
+
         # Hydrate proxy credentials from Azure Key Vault if configured
         resolve_key_vault_proxy_secrets(self.settings)
 
@@ -1214,6 +1227,12 @@ class WalmartProductionScraper:
             if browser is not None:
                 try:
                     await browser.close()
+                except Exception:
+                    pass
+            if live_run_ndjson_handler is not None:
+                try:
+                    logger.removeHandler(live_run_ndjson_handler)
+                    live_run_ndjson_handler.close()
                 except Exception:
                     pass
 

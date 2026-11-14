@@ -2618,6 +2618,23 @@ class TestWalmartScraperRules(unittest.TestCase):
         self.assertEqual(by_id["azure"], "PASSED")
         self.assertTrue(res["hasVerifiedLiveUpdates"])
 
+        # Also verify clean run-scoped output/live_execution_*.ndjson takes precedence over
+        # legacy root walmart_scraper_execution.ndjson containing offline fixture markers.
+        legacy_ndjson = os.path.join(tmp_root, "legacy_root.ndjson")
+        with open(legacy_ndjson, "w", encoding="utf-8") as f:
+            f.write(json.dumps({"message": "Offline fixture Commit 43c92a3bf282be0def6b865d15ae93f45c3666e9"}) + "\n")
+        live_scoped_ndjson = os.path.join(out_dir, "live_execution_4012_2026-11-13.ndjson")
+        shutil.copyfile(ndjson_path, live_scoped_ndjson)
+
+        res_isolated = scan_workspace_and_write_status(
+            output_dir=out_dir,
+            staging_dir=stg_dir,
+            ndjson_path=legacy_ndjson,
+            status_output_path=status_out,
+        )
+        self.assertTrue(res_isolated["hasVerifiedLiveUpdates"])
+        self.assertEqual(res_isolated["rejectedReasons"], [])
+
         if os.path.exists(tmp_root):
             shutil.rmtree(tmp_root)
 
