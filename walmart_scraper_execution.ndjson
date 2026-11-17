@@ -1960,3 +1960,5 @@
 {"timestamp": "2026-11-13T04:51:14.529996Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 2 found 1 product containers"}
 {"timestamp": "2026-11-13T04:51:14.531051Z", "level": "INFO", "logger": "WalmartScraper", "message": "Page 2 yielded 1 new unique records (category total: 3)"}
 {"timestamp": "2026-11-13T04:51:14.532736Z", "level": "INFO", "logger": "WalmartScraper", "message": "[CATEGORY COMPLETE] Naturally completed at terminal page 2 for 'Water' (Category pagination Next button disabled). Total category yield: 3"}
+{"timestamp": "2026-11-17T04:44:26.289869Z", "level": "INFO", "logger": "WalmartScraper", "message": "Starting scraper run for Store #4012 (Dallas, TX) on 2026-11-17"}
+{"timestamp": "2026-11-17T04:44:26.290202Z", "level": "ERROR", "logger": "WalmartScraper", "message": "[DEPENDENCY ERROR] 'playwright' Python library is not installed in the current environment. To run live browser collection, install via 'pip install playwright && playwright install chromium' or run in Azure Container App using scraper/Dockerfile."}
