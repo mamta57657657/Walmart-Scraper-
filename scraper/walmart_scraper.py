@@ -1094,6 +1094,7 @@ class WalmartProductionScraper:
             }
 
         live_run_ndjson_handler: Optional[NDJSONFileHandler] = None
+        attached_ndjson_loggers: List[logging.Logger] = []
         if "unittest" not in sys.modules:
             try:
                 os.makedirs(self.settings.output_directory, exist_ok=True)
@@ -1102,7 +1103,10 @@ class WalmartProductionScraper:
                     f"live_execution_{self.store.store_number}_{self.crawl_date}.ndjson",
                 )
                 live_run_ndjson_handler = NDJSONFileHandler(live_ndjson_path, mode="a", encoding="utf-8")
-                logger.addHandler(live_run_ndjson_handler)
+                for log_name in ("WalmartScraper", "CheckpointManager", "AzureIntegration"):
+                    target_logger = logging.getLogger(log_name)
+                    target_logger.addHandler(live_run_ndjson_handler)
+                    attached_ndjson_loggers.append(target_logger)
             except Exception as nd_err:
                 logger.debug(f"[NDJSON HANDLER] Could not attach run-scoped live NDJSON handler: {nd_err}")
 
@@ -1231,7 +1235,8 @@ class WalmartProductionScraper:
                     pass
             if live_run_ndjson_handler is not None:
                 try:
-                    logger.removeHandler(live_run_ndjson_handler)
+                    for target_logger in attached_ndjson_loggers:
+                        target_logger.removeHandler(live_run_ndjson_handler)
                     live_run_ndjson_handler.close()
                 except Exception:
                     pass
@@ -1287,7 +1292,18 @@ class WalmartProductionScraper:
                 container_name=self.settings.azure_container_name,
             )
             if publisher.is_configured():
-                azure_pub_result = publisher.publish_committed_release(self.checkpoint_mgr.get_active_publication())
+                active_manifest = self.checkpoint_mgr.get_active_publication()
+                azure_pub_result = publisher.publish_committed_release(active_manifest)
+                if azure_pub_result.get("uploaded") and active_manifest:
+                    try:
+                        updated_manifest = dict(active_manifest)
+                        updated_manifest["azure_container"] = azure_pub_result.get("container", self.settings.azure_container_name)
+                        updated_manifest["azure_products_blob"] = azure_pub_result.get("products_blob", "")
+                        updated_manifest["azure_evidence_blob"] = azure_pub_result.get("evidence_blob", "")
+                        updated_manifest["azure_publication"] = azure_pub_result
+                        self.checkpoint_mgr._atomic_write_json(self.checkpoint_mgr.manifest_file, updated_manifest)
+                    except Exception as man_err:
+                        logger.warning(f"[AZURE MANIFEST SYNC] Could not persist azure metadata to local manifest: {man_err}")
 
         return {
             "success": is_promoted,

@@ -125,7 +125,7 @@ def evaluate_live_artifacts(
             "title": "Pagination corrections",
             "status": "PASSED",
             "summary": "Exact page-number parsing and category-scoped Next/count terminal evidence verified via source inspection and focused regressions.",
-            "evidenceNote": "58/58 Python + 16/16 TS tests passing",
+            "evidenceNote": "58/58 Python + 17/17 TS tests passing",
         },
         {
             "id": "coverage",
@@ -198,12 +198,18 @@ def evaluate_live_artifacts(
     )
     pages_seen = sorted({int(p) for p, _, _ in page_matches})
     totals_seen = [int(t) for _, _, t in page_matches]
+    has_increasing_multipage_yield = (
+        len(totals_seen) >= 2
+        and (
+            totals_seen[-1] > totals_seen[0]
+            or any(int(p) >= 2 and int(y) > 0 and int(t) > int(y) for p, y, t in page_matches)
+        )
+    )
     has_perimeter_block = _contains_any(combined_ndjson, PERIMETER_BLOCK_MARKERS)
     if (
         len(pages_seen) >= 2
         and max(pages_seen) >= 2
-        and len(totals_seen) >= 2
-        and totals_seen[-1] > totals_seen[0]
+        and has_increasing_multipage_yield
         and not has_perimeter_block
     ):
         g = by_id["coverage"]
@@ -269,7 +275,7 @@ def evaluate_live_artifacts(
         )
     )
     saw_resume_complete = bool(re.search(r"\[CHECKPOINT RESUME\]", combined_ndjson, re.IGNORECASE)) and (
-        bool(re.search(r"\[PROMOTION\]|\[ATOMIC PUBLISH\]|\"status\":\s*\"COMPLETED\"", combined_ndjson, re.IGNORECASE))
+        bool(re.search(r"\[PROMOTION(?:\s+COMPLETE)?\]|\[ATOMIC PUBLISH\]|\"status\":\s*\"COMPLETED\"", combined_ndjson, re.IGNORECASE))
         or len(live_committed) > 0
     )
     if saw_protection and (saw_resume_complete or len(live_committed) > 0):

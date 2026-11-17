@@ -2635,6 +2635,22 @@ class TestWalmartScraperRules(unittest.TestCase):
         self.assertTrue(res_isolated["hasVerifiedLiveUpdates"])
         self.assertEqual(res_isolated["rejectedReasons"], [])
 
+        # Also verify multi-category log where Category 1 grows 24->44 and last category has 1 page (24)
+        # plus real CheckpointManager '[PROMOTION COMPLETE]' phrasing still automatically removes PENDING.
+        from verify_live_gates import evaluate_live_artifacts
+        trailing_single_ndjson = "\n".join([
+            json.dumps({"message": "Page 1 yielded 24 new unique records (category total: 24)"}),
+            json.dumps({"message": "Page 2 yielded 20 new unique records (category total: 44)"}),
+            json.dumps({"message": "[INTERRUPTION SIGNAL] Received SIGNAL_15; halting safely."}),
+            json.dumps({"message": "[CHECKPOINT RESUME] Resuming category 'Cereal' from page 1 (prior staged items: 0)"}),
+            json.dumps({"message": "Page 1 yielded 24 new unique records (category total: 24)"}),
+            json.dumps({"message": "[PROMOTION COMPLETE] Successfully committed release r2 (Records: 524, SHA256: deadbeef1234...)"}),
+        ])
+        res_trailing = evaluate_live_artifacts(ndjson_text=trailing_single_ndjson)
+        by_id_trailing = {g["id"]: g["status"] for g in res_trailing["gates"]}
+        self.assertEqual(by_id_trailing["coverage"], "PASSED")
+        self.assertEqual(by_id_trailing["recovery"], "PASSED")
+
         if os.path.exists(tmp_root):
             shutil.rmtree(tmp_root)
 

@@ -107,3 +107,25 @@ test('genuine live run logs, Store #4012 PICKUP capture, recovery logs, and Azur
   assert.equal(report.hasVerifiedLiveUpdates, true);
   assert.equal(report.rejectedReasons.length, 0);
 });
+
+test('multi-category trailing single-page logs and [PROMOTION COMPLETE] promote coverage and recovery automatically', () => {
+  const multiCatNdjson = [
+    JSON.stringify({ message: 'Page 1 yielded 24 new unique records (category total: 24)' }),
+    JSON.stringify({ message: 'Page 2 yielded 20 new unique records (category total: 44)' }),
+    JSON.stringify({ message: '[PROTECTION ACTIVE] Run interrupted (SIGNAL_15); previous committed delivery preserved intact.' }),
+    JSON.stringify({ message: '[CHECKPOINT RESUME] Resuming category \'Cereal\' from page 1 (prior staged items: 0)' }),
+    JSON.stringify({ message: 'Page 1 yielded 24 new unique records (category total: 24)' }),
+    JSON.stringify({ message: '[PROMOTION COMPLETE] Successfully committed release rel-4012 (Records: 524, SHA256: abcdef123456...)' }),
+  ].join('\n');
+
+  const report = evaluateLiveArtifacts({
+    ndjsonText: multiCatNdjson,
+    evaluatedAt: '2026-11-17T04:50:00Z',
+  });
+
+  const byId = Object.fromEntries(report.gates.map((g) => [g.id, g.status]));
+  assert.equal(byId.coverage, 'PASSED');
+  assert.equal(byId.recovery, 'PASSED');
+  assert.equal(report.hasVerifiedLiveUpdates, true);
+});
+

@@ -168,7 +168,7 @@ export const DEFAULT_ACCEPTANCE_GATES: AcceptanceGateResult[] = [
     status: 'PASSED',
     summary:
       'Exact page-number parsing and category-scoped Next/count terminal evidence verified via source inspection and focused regressions.',
-    evidenceNote: '58/58 Python + 16/16 TS tests passing',
+    evidenceNote: '58/58 Python + 17/17 TS tests passing',
   },
   {
     id: 'coverage',
@@ -250,11 +250,19 @@ export function evaluateLiveArtifacts(input: LiveArtifactInput): GateEvaluationR
   );
   const observedPages = new Set<number>(pageYieldMatches.map((m) => Number(m[1])));
   const categoryTotals = pageYieldMatches.map((m) => Number(m[3]));
+  const hasIncreasingPageGrowth =
+    categoryTotals.length >= 2 &&
+    (categoryTotals[categoryTotals.length - 1] > categoryTotals[0] ||
+      pageYieldMatches.some((m) => {
+        const pageNum = Number(m[1]);
+        const yielded = Number(m[2]);
+        const catTotal = Number(m[3]);
+        return pageNum >= 2 && yielded > 0 && catTotal > yielded;
+      }));
   const hasMultiPageIncreasingCounts =
     observedPages.size >= 2 &&
     Math.max(...observedPages) >= 2 &&
-    categoryTotals.length >= 2 &&
-    categoryTotals[categoryTotals.length - 1] > categoryTotals[0];
+    hasIncreasingPageGrowth;
 
   const hasPerimeterBlock = containsAny(ndjsonMessages, PERIMETER_BLOCK_MARKERS);
   if (hasPerimeterBlock && !hasMultiPageIncreasingCounts) {
@@ -317,7 +325,7 @@ export function evaluateLiveArtifacts(input: LiveArtifactInput): GateEvaluationR
     );
   const sawResumeSuccess =
     /\[CHECKPOINT RESUME\]/i.test(ndjsonMessages) &&
-    (/\[PROMOTION\]|\[ATOMIC PUBLISH\]|"status":\s*"COMPLETED"/i.test(ndjsonMessages) ||
+    (/\[PROMOTION(?:\s+COMPLETE)?\]|\[ATOMIC PUBLISH\]|"status":\s*"COMPLETED"/i.test(ndjsonMessages) ||
       liveCommittedManifests.length > 0);
   const manifestHasMultipleReleases =
     liveCommittedManifests.length >= 1 && sawProtectionActive;
