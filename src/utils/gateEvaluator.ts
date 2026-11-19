@@ -161,6 +161,75 @@ function extractStoreAndPickupFromCapture(capture: Record<string, unknown>): {
   return { hasLiveWalmartUrl, isBlocked, storeId, fulfillmentMode, hasItemPrice };
 }
 
+function extractArtifactIdentities(
+  text: string,
+  manifests: Record<string, unknown>[]
+): { stores: Set<string>; runs: Set<string>; releases: Set<string> } {
+  const stores = new Set<string>();
+  const runs = new Set<string>();
+  const releases = new Set<string>();
+
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || !line.startsWith('{')) continue;
+    try {
+      const obj = JSON.parse(line) as Record<string, unknown>;
+      if (obj && typeof obj === 'object') {
+        if (obj.store_number) stores.add(String(obj.store_number).trim());
+        if (obj.run_id && String(obj.run_id).trim().toLowerCase() !== 'unspecified') {
+          runs.add(String(obj.run_id).trim());
+        }
+        if (obj.release_id) releases.add(String(obj.release_id).trim());
+      }
+    } catch {
+      // Ignore non-JSON lines
+    }
+  }
+
+  for (const m of text.matchAll(/(?:Store\s*#|store_number=)([0-9A-Za-z_-]+)/gi)) {
+    stores.add(m[1].trim());
+  }
+  for (const m of text.matchAll(/publication_manifest_([0-9A-Za-z_-]+)\.json/gi)) {
+    stores.add(m[1].trim());
+  }
+  for (const m of text.matchAll(/(?:Starting scraper run\s+|run_id=)([A-Za-z0-9._-]+)/g)) {
+    const rid = m[1].trim();
+    if (rid.toLowerCase() !== 'unspecified') runs.add(rid);
+  }
+  for (const m of text.matchAll(
+    /(?:\[ATOMIC PUBLISH\]\s+Promoted staging release|\[PROMOTION COMPLETE\]\s+Successfully committed release|\[AZURE BLOB PUBLISHED\]\s+Release)\s+([A-Za-z0-9._-]+)/gi
+  )) {
+    releases.add(m[1].trim());
+  }
+  for (const m of text.matchAll(/releases\/([A-Za-z0-9._-]+)\//g)) {
+    releases.add(m[1].trim());
+  }
+
+  for (const man of manifests) {
+    if (man.store_number) stores.add(String(man.store_number).trim());
+    if (man.run_id && String(man.run_id).trim().toLowerCase() !== 'unspecified') {
+      runs.add(String(man.run_id).trim());
+    }
+    if (man.release_id) releases.add(String(man.release_id).trim());
+    for (const k of ['azure_products_blob', 'azure_evidence_blob']) {
+      const v = String(man[k] ?? '');
+      const mb = v.match(/releases\/([A-Za-z0-9._-]+)\//);
+      if (mb) releases.add(mb[1].trim());
+    }
+  }
+
+  return { stores, runs, releases };
+}
+
+function hasIntersection(sets: Set<string>[]): boolean {
+  if (sets.length < 2) return true;
+  const [first, ...rest] = sets;
+  for (const item of first) {
+    if (rest.every((s) => s.has(item))) return true;
+  }
+  return false;
+}
+
 export const DEFAULT_ACCEPTANCE_GATES: AcceptanceGateResult[] = [
   {
     id: 'pagination',
@@ -168,7 +237,7 @@ export const DEFAULT_ACCEPTANCE_GATES: AcceptanceGateResult[] = [
     status: 'PASSED',
     summary:
       'Exact page-number parsing and category-scoped Next/count terminal evidence verified via source inspection and focused regressions.',
-    evidenceNote: '58/58 Python + 17/17 TS tests passing',
+    evidenceNote: 'Offline regression suite passing',
   },
   {
     id: 'coverage',
@@ -224,8 +293,14 @@ export function evaluateLiveArtifacts(input: LiveArtifactInput): GateEvaluationR
   if (rawIsFixture) {
     rejectedReasons.push('Raw evidence capture contains offline fixture markers and cannot verify live Pickup pricing.');
   }
+  const azureIsFixture =
+    Boolean(azureLogText.trim()) && containsAny(azureLogText, OFFLINE_FIXTURE_MARKERS);
+  if (azureIsFixture) {
+    rejectedReasons.push('Azure log contains offline fixture markers and cannot verify live Azure execution.');
+  }
 
   const effectiveNdjson = ndjsonIsFixture ? '' : ndjsonText;
+  const effectiveAzure = azureIsFixture ? '' : azureLogText;
   const ndjsonRows = parseJsonLines(effectiveNdjson);
   const ndjsonMessages = [
     ...ndjsonRows.map((r) => String(r.message ?? '')),
@@ -243,6 +318,81 @@ export function evaluateLiveArtifacts(input: LiveArtifactInput): GateEvaluationR
     }
     return m.status === 'COMMITTED' && Number(m.total_records ?? 0) > 0;
   });
+
+  // Extract per-artifact store/run/release identities
+  const ndjsonIds = extractArtifactIdentities([effectiveNdjson, ndjsonMessages].join('\n'), []);
+  const manifestIds = extractArtifactIdentities('', liveCommittedManifests);
+  const azureIds = extractArtifactIdentities(effectiveAzure, []);
+  const rawStores = new Set<string>();
+  const rawRuns = new Set<string>();
+  const verifiedCaptures: { storeId: string; mode: string; runId: string }[] = [];
+
+  if (!rawIsFixture && rawEvidenceText.trim()) {
+    const captures = parseJsonLines(rawEvidenceText);
+    let sawBlockedCapture = false;
+
+    for (const cap of captures) {
+      const info = extractStoreAndPickupFromCapture(cap);
+      if (info.isBlocked) {
+        sawBlockedCapture = true;
+        continue;
+      }
+      if (
+        info.hasLiveWalmartUrl &&
+        info.storeId &&
+        AFFIRMATIVE_PICKUP_MODES.has(info.fulfillmentMode) &&
+        info.hasItemPrice
+      ) {
+        const capStore = String(cap.store_number ?? info.storeId).trim();
+        const capRun = String(cap.run_id ?? '').trim();
+        rawStores.add(capStore);
+        if (capRun && capRun.toLowerCase() !== 'unspecified') rawRuns.add(capRun);
+        verifiedCaptures.push({ storeId: capStore, mode: info.fulfillmentMode, runId: capRun });
+      }
+    }
+
+    if (verifiedCaptures.length === 0 && sawBlockedCapture) {
+      rejectedReasons.push('Uploaded raw evidence capture hit Walmart perimeter challenge ("Robot or human?").');
+    } else if (verifiedCaptures.length === 0 && captures.length > 0) {
+      rejectedReasons.push('Raw evidence lacks verified walmart.com storeId, affirmative PICKUP mode, and item price.');
+    }
+  }
+
+  // Cross-artifact store, run, and release linkage validation
+  const allStores = new Set<string>([
+    ...ndjsonIds.stores,
+    ...rawStores,
+    ...manifestIds.stores,
+    ...azureIds.stores,
+  ]);
+  const storeMismatch = allStores.size > 1;
+  if (storeMismatch) {
+    rejectedReasons.push(
+      `Cross-artifact store_number mismatch detected (${Array.from(allStores).sort().join(', ')}); live evidence must reference the same store.`
+    );
+  }
+
+  const runSets = [ndjsonIds.runs, manifestIds.runs, azureIds.runs].filter((s) => s.size > 0);
+  let runMismatch = runSets.length >= 2 && !hasIntersection(runSets);
+  if (rawRuns.size > 0 && (ndjsonIds.runs.size > 0 || manifestIds.runs.size > 0)) {
+    const knownRuns = new Set([...ndjsonIds.runs, ...manifestIds.runs]);
+    if (knownRuns.size > 0 && !Array.from(rawRuns).some((r) => knownRuns.has(r))) {
+      runMismatch = true;
+    }
+  }
+  if (runMismatch) {
+    rejectedReasons.push('Cross-artifact run_id mismatch detected; live artifacts belong to different runs.');
+  }
+
+  const releaseSets = [ndjsonIds.releases, manifestIds.releases, azureIds.releases].filter((s) => s.size > 0);
+  const releaseMismatch = releaseSets.length >= 2 && !hasIntersection(releaseSets);
+  if (releaseMismatch) {
+    rejectedReasons.push(
+      'Cross-artifact release_id mismatch detected; NDJSON, manifest, and Azure logs must reference the same release.'
+    );
+  }
+
+  const linkageValid = !(storeMismatch || runMismatch || releaseMismatch);
 
   // 1. Full catalog coverage: multi-page listing evidence (Page 2+) + increasing unique counts
   const pageYieldMatches = Array.from(
@@ -270,7 +420,7 @@ export function evaluateLiveArtifacts(input: LiveArtifactInput): GateEvaluationR
   }
 
   const completedManifest = liveCommittedManifests.find((m) => Number(m.total_records ?? 0) > 0);
-  if (hasMultiPageIncreasingCounts && !hasPerimeterBlock) {
+  if (linkageValid && hasMultiPageIncreasingCounts && !hasPerimeterBlock) {
     const coverageGate = gates.find((g) => g.id === 'coverage')!;
     coverageGate.status = 'PASSED';
     coverageGate.summary = `Verified live multi-page traversal across pages ${Array.from(observedPages).sort((a, b) => a - b).join(', ')} with growing unique yield (category total reached ${Math.max(...categoryTotals)}).`;
@@ -281,41 +431,13 @@ export function evaluateLiveArtifacts(input: LiveArtifactInput): GateEvaluationR
   }
 
   // 2. Live Walmart Pickup pricing: real raw_evidence JSONL with walmart.com, Store ID, affirmative PICKUP, and price
-  if (!rawIsFixture && rawEvidenceText.trim()) {
-    const captures = parseJsonLines(rawEvidenceText);
-    let verifiedCaptureStore = '';
-    let verifiedCaptureMode = '';
-    let sawBlockedCapture = false;
-
-    for (const cap of captures) {
-      const info = extractStoreAndPickupFromCapture(cap);
-      if (info.isBlocked) {
-        sawBlockedCapture = true;
-        continue;
-      }
-      if (
-        info.hasLiveWalmartUrl &&
-        info.storeId &&
-        AFFIRMATIVE_PICKUP_MODES.has(info.fulfillmentMode) &&
-        info.hasItemPrice
-      ) {
-        verifiedCaptureStore = info.storeId;
-        verifiedCaptureMode = info.fulfillmentMode;
-        break;
-      }
-    }
-
-    if (verifiedCaptureStore) {
-      const pricingGate = gates.find((g) => g.id === 'pickup_pricing')!;
-      pricingGate.status = 'PASSED';
-      pricingGate.summary = `Verified live Walmart network capture returning Store #${verifiedCaptureStore}, fulfillment mode ${verifiedCaptureMode}, and item-level pricing.`;
-      pricingGate.evidenceNote = `Store #${verifiedCaptureStore} • ${verifiedCaptureMode} live capture verified`;
-      pricingGate.verifiedAt = timestamp;
-    } else if (sawBlockedCapture) {
-      rejectedReasons.push('Uploaded raw evidence capture hit Walmart perimeter challenge ("Robot or human?").');
-    } else if (captures.length > 0) {
-      rejectedReasons.push('Raw evidence lacks verified walmart.com storeId, affirmative PICKUP mode, and item price.');
-    }
+  if (linkageValid && verifiedCaptures.length > 0) {
+    const firstCap = verifiedCaptures[0];
+    const pricingGate = gates.find((g) => g.id === 'pickup_pricing')!;
+    pricingGate.status = 'PASSED';
+    pricingGate.summary = `Verified live Walmart network capture returning Store #${firstCap.storeId}, fulfillment mode ${firstCap.mode}, and item-level pricing.`;
+    pricingGate.evidenceNote = `Store #${firstCap.storeId} • ${firstCap.mode} live capture verified`;
+    pricingGate.verifiedAt = timestamp;
   }
 
   // 3. Interruption and recovery: observed failed/interrupted preservation + resumed completion
@@ -330,7 +452,7 @@ export function evaluateLiveArtifacts(input: LiveArtifactInput): GateEvaluationR
   const manifestHasMultipleReleases =
     liveCommittedManifests.length >= 1 && sawProtectionActive;
 
-  if ((sawProtectionActive && sawResumeSuccess) || manifestHasMultipleReleases) {
+  if (linkageValid && ((sawProtectionActive && sawResumeSuccess) || manifestHasMultipleReleases)) {
     const recoveryGate = gates.find((g) => g.id === 'recovery')!;
     recoveryGate.status = 'PASSED';
     recoveryGate.summary =
@@ -352,13 +474,14 @@ export function evaluateLiveArtifacts(input: LiveArtifactInput): GateEvaluationR
     );
   });
 
-  const combinedAzureLogs = [ndjsonMessages, azureLogText].filter(Boolean).join('\n');
+  const combinedAzureLogs = [ndjsonMessages, effectiveAzure].filter(Boolean).join('\n');
   const azureLogConfirmed =
+    Boolean(combinedAzureLogs.trim()) &&
     !containsAny(combinedAzureLogs, OFFLINE_FIXTURE_MARKERS) &&
     /\[AZURE BLOB PUBLISHED\]/i.test(combinedAzureLogs) &&
-    /publication_manifest_\d+\.json/i.test(combinedAzureLogs);
+    /publication_manifest_[0-9A-Za-z_-]+\.json/i.test(combinedAzureLogs);
 
-  if (azureManifest || azureLogConfirmed) {
+  if (linkageValid && (azureManifest || azureLogConfirmed)) {
     const azureGate = gates.find((g) => g.id === 'azure')!;
     const containerName = azureManifest
       ? String(

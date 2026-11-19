@@ -63,18 +63,36 @@ def detect_store_brand(product_title: str, raw_brand: str = "") -> str:
             return "Walmart" if brand == "walmart" else brand.title()
     return "no"
 
-def format_price(price_str: str) -> str:
-    """Formats numeric price consistently with leading dollar sign ($X.XX)."""
-    if not price_str:
+def format_price(price_str: Any) -> str:
+    """
+    Formats numeric price consistently with leading dollar sign ($X.XX).
+    Correctly converts cent-denominated prices (e.g. '98¢', '98 cents', '98c') into '$0.98'.
+    """
+    if price_str is None:
         return ""
-    clean = re.sub(r'[^\d.]', '', price_str.strip())
-    if not clean:
+    raw = str(price_str).strip()
+    if not raw:
+        return ""
+
+    raw_no_commas = raw.replace(",", "")
+    has_dollar = "$" in raw_no_commas
+    is_cents = (not has_dollar) and (
+        "¢" in raw_no_commas
+        or bool(re.search(r'\b\d+(?:\.\d+)?\s*(?:cents?|c)\b', raw_no_commas, re.IGNORECASE))
+        or bool(re.search(r'\d\s*¢', raw_no_commas))
+    )
+
+    m_num = re.search(r'\d+(?:\.\d+)?', raw_no_commas)
+    if not m_num:
         return ""
     try:
-        val = float(clean)
+        val = float(m_num.group(0))
+        if is_cents:
+            val = val / 100.0
         return f"${val:.2f}"
     except ValueError:
-        return price_str.strip()
+        return raw
+
 
 def sanitize_and_order_record(raw: Dict[str, Any], crawl_date: str, preserve_meta: bool = False) -> Dict[str, str]:
     """
@@ -83,6 +101,7 @@ def sanitize_and_order_record(raw: Dict[str, Any], crawl_date: str, preserve_met
     - gupc is empty string ""
     - unit_price is empty string ""
     - All four volume/digital deal fields are strictly empty strings "" for Walmart
+    - Preserve original observation crawl_date if already recorded on the row
     - crawl_date is final field
     - No remarks or gupc14
     """
@@ -95,7 +114,8 @@ def sanitize_and_order_record(raw: Dict[str, Any], crawl_date: str, preserve_met
         elif key in ["volume_deals_description", "volume_deals_price", "digital_deals_description", "digital_deals_price"]:
             ordered[key] = ""
         elif key == "crawl_date":
-            ordered["crawl_date"] = crawl_date
+            existing_date = str(raw.get("crawl_date") or "").strip()
+            ordered["crawl_date"] = existing_date if existing_date else crawl_date
         else:
             val = raw.get(key, "")
             ordered[key] = "" if val is None else str(val).strip()
@@ -108,13 +128,18 @@ def sanitize_and_order_record(raw: Dict[str, Any], crawl_date: str, preserve_met
 
     return ordered
 
-def validate_dataset(records: List[Dict[str, str]], min_expected: int = 500) -> Tuple[bool, Dict[str, Any]]:
+
+def validate_dataset(
+    records: List[Dict[str, str]],
+    min_expected: int = 500,
+    expected_zipcodes: Any = None
+) -> Tuple[bool, Dict[str, Any]]:
     """
     Validates dataset health:
     - Minimum record threshold
-    - Zero duplicate records by (URL + UPC)
+    - Zero duplicate records by (URL + UPC + zipcode)
     - 100% field completeness for required keys
-    - Field order verification
+    - Exact 22-field order verification with strict empty invariants
     """
     stats = {
         "total_records": len(records),
@@ -131,21 +156,33 @@ def validate_dataset(records: List[Dict[str, str]], min_expected: int = 500) -> 
     seen = set()
     # Core identity fields that must never be empty for catalog continuity
     required_identity_fields = ["zipcode", "store_name", "store_location", "category", "sub_category", "product_title", "url", "crawl_date"]
+    deal_fields = ["volume_deals_description", "volume_deals_price", "digital_deals_description", "digital_deals_price"]
     empty_field_occurrences = 0
     unavailable_assortment_count = 0
+    allowed_zips = set(expected_zipcodes) if expected_zipcodes else None
 
     for idx, r in enumerate(records):
-        # 1. Field order check
+        # 1. Field order check (strictly matches REQUIRED_FIELD_ORDER, no extra/missing keys)
         if list(r.keys()) != REQUIRED_FIELD_ORDER:
             stats["errors"].append(f"Record {idx} violates strict 22-field ordering")
             break
 
-        # 2. Invariant: gupc and unit_price must be strictly empty strings
+        # 2. Invariant: gupc, unit_price, and all 4 deal fields must be strictly empty strings
         if r.get("gupc") != "":
             stats["errors"].append(f"Record {idx} ('{r.get('product_title')}') has non-empty gupc: '{r.get('gupc')}'")
             break
         if r.get("unit_price") != "":
             stats["errors"].append(f"Record {idx} ('{r.get('product_title')}') has non-empty unit_price: '{r.get('unit_price')}'")
+            break
+        for df in deal_fields:
+            if r.get(df) != "":
+                stats["errors"].append(f"Record {idx} ('{r.get('product_title')}') has non-empty {df}: '{r.get(df)}'")
+                break
+        if stats["errors"]:
+            break
+
+        if allowed_zips is not None and r.get("zipcode") not in allowed_zips:
+            stats["errors"].append(f"Record {idx} zipcode '{r.get('zipcode')}' does not match expected store zipcode {sorted(allowed_zips)}")
             break
 
         # 3. Check duplicates

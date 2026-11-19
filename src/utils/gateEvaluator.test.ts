@@ -129,3 +129,76 @@ test('multi-category trailing single-page logs and [PROMOTION COMPLETE] promote 
   assert.equal(report.hasVerifiedLiveUpdates, true);
 });
 
+test('mismatched store, run_id, or release_id across artifacts are rejected and keep gates PENDING', () => {
+  const baseNdjson = [
+    JSON.stringify({ run_id: 'run-4012-A', store_number: '4012', message: 'Page 1 yielded 24 new unique records (category total: 24)' }),
+    JSON.stringify({ run_id: 'run-4012-A', store_number: '4012', message: 'Page 2 yielded 20 new unique records (category total: 44)' }),
+    JSON.stringify({ run_id: 'run-4012-A', store_number: '4012', message: '[ATOMIC PUBLISH] Promoted staging release rel-A -> output/publication_manifest_4012.json' }),
+  ].join('\n');
+
+  const raw4012 = JSON.stringify({
+    store_number: '4012',
+    run_id: 'run-4012-A',
+    endpoint: 'https://www.walmart.com/browse/food/1#__NEXT_DATA__',
+    request: { url: 'https://www.walmart.com/browse/food/1' },
+    payload: {
+      data: {
+        searchResult: {
+          storeId: '4012',
+          fulfillmentMode: 'PICKUP',
+          itemStacks: [{ items: [{ usItemId: '101', priceInfo: { currentPrice: { priceString: '$3.48' } } }] }],
+        },
+      },
+    },
+  });
+
+  // 1. Mismatched store in manifest (1129 vs 4012)
+  const storeMismatchManifest = JSON.stringify({
+    status: 'COMMITTED',
+    store_number: '1129',
+    run_id: 'run-4012-A',
+    release_id: 'rel-A',
+    total_records: 524,
+  });
+  const storeMismatchReport = evaluateLiveArtifacts({
+    ndjsonText: baseNdjson,
+    rawEvidenceText: raw4012,
+    manifestTexts: [storeMismatchManifest],
+  });
+  assert.equal(storeMismatchReport.hasVerifiedLiveUpdates, false);
+  assert.ok(storeMismatchReport.rejectedReasons.some((r) => r.includes('store_number mismatch')));
+
+  // 2. Mismatched run_id in manifest (run-4012-B vs run-4012-A)
+  const runMismatchManifest = JSON.stringify({
+    status: 'COMMITTED',
+    store_number: '4012',
+    run_id: 'run-4012-B',
+    release_id: 'rel-A',
+    total_records: 524,
+  });
+  const runMismatchReport = evaluateLiveArtifacts({
+    ndjsonText: baseNdjson,
+    rawEvidenceText: raw4012,
+    manifestTexts: [runMismatchManifest],
+  });
+  assert.equal(runMismatchReport.hasVerifiedLiveUpdates, false);
+  assert.ok(runMismatchReport.rejectedReasons.some((r) => r.includes('run_id mismatch')));
+
+  // 3. Mismatched release_id in manifest (rel-B vs rel-A)
+  const relMismatchManifest = JSON.stringify({
+    status: 'COMMITTED',
+    store_number: '4012',
+    run_id: 'run-4012-A',
+    release_id: 'rel-B',
+    total_records: 524,
+  });
+  const relMismatchReport = evaluateLiveArtifacts({
+    ndjsonText: baseNdjson,
+    rawEvidenceText: raw4012,
+    manifestTexts: [relMismatchManifest],
+  });
+  assert.equal(relMismatchReport.hasVerifiedLiveUpdates, false);
+  assert.ok(relMismatchReport.rejectedReasons.some((r) => r.includes('release_id mismatch')));
+});
+
+

@@ -222,11 +222,11 @@ class TestWalmartScraperRules(unittest.TestCase):
         mgr = CheckpointManager("4012", "2026-10-22", staging_dir=test_staging, output_dir=test_output)
 
         # Append valid evidence capture
-        mgr.append_raw_evidence("https://www.walmart.com/test", {"test": 1}, {"data": {}})
+        cap_id = mgr.append_raw_evidence("https://www.walmart.com/test", {"test": 1}, {"data": {}})
 
         # Sufficient records (520 records)
         full_records = [
-            {"zipcode": "75001", "product_title": f"Item {i}", "upc": f"078742{i:06d}", "regular_price": "$3.00", "sale_price": "$2.50"}
+            {"zipcode": "75001", "product_title": f"Item {i}", "upc": f"078742{i:06d}", "regular_price": "$3.00", "sale_price": "$2.50", "capture_id": cap_id}
             for i in range(520)
         ]
         mgr.append_staging_records(full_records)
@@ -282,7 +282,7 @@ class TestWalmartScraperRules(unittest.TestCase):
         test_endpoint = "https://www.walmart.com/orchestra/home/graphql/browse/v1"
         test_request = {"storeId": "4012", "postalCode": "75001", "catId": "976759"}
         test_response = {"data": {"search": {"searchResult": {"itemStacks": [{"items": [{"id": "1001", "name": "Test Milk"}]}]}}}}
-        mgr.append_raw_evidence(test_endpoint, test_request, test_response)
+        cap_id = mgr.append_raw_evidence(test_endpoint, test_request, test_response)
 
         # Verify raw evidence file exists and contains valid JSON line
         self.assertTrue(os.path.exists(mgr.raw_evidence_file))
@@ -295,7 +295,7 @@ class TestWalmartScraperRules(unittest.TestCase):
 
         # 2. Add enough records for promotion
         records = [
-            {"zipcode": "75001", "product_title": f"Item {i}", "upc": f"078742{i:06d}", "regular_price": "$3.00", "sale_price": "$2.50"}
+            {"zipcode": "75001", "product_title": f"Item {i}", "upc": f"078742{i:06d}", "regular_price": "$3.00", "sale_price": "$2.50", "capture_id": cap_id}
             for i in range(505)
         ]
         mgr.append_staging_records(records)
@@ -672,13 +672,13 @@ class TestWalmartScraperRules(unittest.TestCase):
         if os.path.exists(test_out): shutil.rmtree(test_out)
 
         mgr = CheckpointManager("4012", "2026-10-23", staging_dir=test_dir, output_dir=test_out)
+        cap_id = mgr.append_raw_evidence("https://walmart.com/graphql", {"req": "data"}, {"resp": "data"})
         # Create staging records
         records = [
-            {"zipcode": "75001", "product_title": f"Product {i}", "upc": f"078742{i:06d}", "regular_price": "$3.00", "sale_price": "$2.50"}
+            {"zipcode": "75001", "product_title": f"Product {i}", "upc": f"078742{i:06d}", "regular_price": "$3.00", "sale_price": "$2.50", "capture_id": cap_id}
             for i in range(505)
         ]
         mgr.append_staging_records(records)
-        mgr.append_raw_evidence("https://walmart.com/graphql", {"req": "data"}, {"resp": "data"})
 
         promoted = mgr.promote_staging_to_production(min_threshold=500, store_fulfillment_verified=True)
         self.assertTrue(promoted, "Publication must succeed with valid data and evidence")
@@ -990,12 +990,12 @@ class TestWalmartScraperRules(unittest.TestCase):
         if os.path.exists(test_out): shutil.rmtree(test_out)
 
         mgr = CheckpointManager("4012", "2026-10-23", staging_dir=test_dir, output_dir=test_out)
+        cap_id = mgr.append_raw_evidence("https://walmart.com/graphql", {"req": "data"}, {"resp": "data"})
         records = [
-            {"zipcode": "75001", "product_title": f"Product {i}", "upc": f"078742{i:06d}", "regular_price": "$3.00", "sale_price": "$2.50"}
+            {"zipcode": "75001", "product_title": f"Product {i}", "upc": f"078742{i:06d}", "regular_price": "$3.00", "sale_price": "$2.50", "capture_id": cap_id}
             for i in range(505)
         ]
         mgr.append_staging_records(records)
-        mgr.append_raw_evidence("https://walmart.com/graphql", {"req": "data"}, {"resp": "data"})
         promoted = mgr.promote_staging_to_production(min_threshold=500, store_fulfillment_verified=True)
         self.assertTrue(promoted)
 
@@ -2653,6 +2653,597 @@ class TestWalmartScraperRules(unittest.TestCase):
 
         if os.path.exists(tmp_root):
             shutil.rmtree(tmp_root)
+
+    def test_issue1_nested_shipping_offer_99_rejected_and_offer_seller_store_upc_cents_bound(self):
+        """
+        Issue 1 Regression:
+        - Reject $99 leaked from a nested shipping offer for a different store even on a #4012 pickup page.
+        - Reject 3P marketplace offers / sellers.
+        - Bind price strictly to item, 1P Walmart seller, offerId, fulfillmentMode, and store.
+        - Extract UPC from source network payload and convert cents ('98¢' -> '$0.98', not '$98.00').
+        """
+        import asyncio
+        import shutil
+        from config import StoreConfig, ScraperSettings
+        from validation import format_price
+        from walmart_scraper import WalmartProductionScraper
+
+        self.assertEqual(format_price("98¢"), "$0.98")
+        self.assertEqual(format_price("98 cents"), "$0.98")
+        self.assertEqual(format_price("5c"), "$0.05")
+        self.assertEqual(format_price("$98.00"), "$98.00")
+
+        test_staging = ".staging_reg_issue1"
+        test_out = "output_reg_issue1"
+        if os.path.exists(test_staging): shutil.rmtree(test_staging)
+        if os.path.exists(test_out): shutil.rmtree(test_out)
+
+        async def _run_test():
+            store = StoreConfig("4012", "75001", "Walmart Supercenter #4012", "1234 Main St, Dallas, TX 75201")
+            settings = ScraperSettings()
+            settings.delay_between_requests_sec = 0.0
+            settings.output_directory = test_out
+            scraper = WalmartProductionScraper(store, settings, resume=False, crawl_date="2026-11-18", staging_dir=test_staging)
+
+            ssr_payload = {
+                "props": {
+                    "pageProps": {
+                        "locationContext": {"intent": "PICKUP", "pickupStore": {"storeId": "4012"}},
+                        "initialData": {
+                            "searchResult": {
+                                "storeId": "4012",
+                                "fulfillmentMode": "PICKUP",
+                                "itemStacks": [{
+                                    "items": [
+                                        {
+                                            # Top-level leaked $99 + nested wrong-store SHIPPING offer -> must NOT export $99
+                                            "usItemId": "201",
+                                            "upc": "078742000201",
+                                            "priceInfo": {"currentPrice": {"priceString": "$99.00"}},
+                                            "offers": [
+                                                {
+                                                    "offerId": "OFF-SHIP-9999",
+                                                    "storeId": "9999",
+                                                    "fulfillmentMode": "SHIPPING",
+                                                    "sellerName": "Walmart.com",
+                                                    "priceInfo": {"currentPrice": {"priceString": "$99.00"}},
+                                                }
+                                            ],
+                                        },
+                                        {
+                                            # Correct Store #4012 1P PICKUP offer priced at 98¢ alongside $99 wrong-store offer
+                                            "usItemId": "202",
+                                            "gtin12": "078742000202",
+                                            "priceInfo": {"currentPrice": {"priceString": "$99.00"}},
+                                            "offers": [
+                                                {
+                                                    "offerId": "OFF-SHIP-9999",
+                                                    "storeId": "9999",
+                                                    "fulfillmentMode": "SHIPPING",
+                                                    "priceInfo": {"currentPrice": {"priceString": "$99.00"}},
+                                                },
+                                                {
+                                                    "offerId": "OFF-4012-202",
+                                                    "storeId": "4012",
+                                                    "fulfillmentMode": "PICKUP",
+                                                    "pickupAvailable": True,
+                                                    "sellerName": "Walmart Inc.",
+                                                    "priceInfo": {"currentPrice": {"priceString": "98¢"}},
+                                                },
+                                            ],
+                                        },
+                                        {
+                                            # 3P Marketplace seller must be excluded
+                                            "usItemId": "203",
+                                            "upc": "078742000203",
+                                            "sellerName": "ThirdPartyGadgets LLC",
+                                            "isThirdParty": True,
+                                            "priceInfo": {"currentPrice": {"priceString": "$99.00"}},
+                                            "fulfillment": {"pickupAvailable": True},
+                                        },
+                                    ]
+                                }],
+                            }
+                        },
+                    }
+                }
+            }
+
+            p201 = ControlledMockElement("div", {"data-item-id": "201"}, text="Soup Mix, 12 oz", children=[
+                ControlledMockElement("span", {"data-automation-id": "product-title"}, text="Soup Mix, 12 oz"),
+                ControlledMockElement("a", {"href": "/ip/soup-mix/201"}, text="Soup Mix"),
+                ControlledMockElement("span", {"data-automation-id": "product-price"}, text="$99.00"),
+            ])
+            p202 = ControlledMockElement("div", {"data-item-id": "202", "data-offer-id": "OFF-4012-202"}, text="Mustard Packet, 8 oz", children=[
+                ControlledMockElement("span", {"data-automation-id": "product-title"}, text="Mustard Packet, 8 oz"),
+                ControlledMockElement("a", {"href": "/ip/mustard/202"}, text="Mustard"),
+                ControlledMockElement("span", {"data-automation-id": "product-price"}, text="98¢"),
+            ])
+            p203 = ControlledMockElement("div", {"data-item-id": "203"}, text="Marketplace Pan, 10 oz", children=[
+                ControlledMockElement("span", {"data-automation-id": "product-title"}, text="Marketplace Pan, 10 oz"),
+                ControlledMockElement("a", {"href": "/ip/pan/203"}, text="Pan"),
+                ControlledMockElement("span", {"data-automation-id": "product-price"}, text="$99.00"),
+            ])
+            next_dis = ControlledMockElement("button", {"aria-label": "Next Page", "disabled": "true"}, text="Next")
+            pag = ControlledMockElement("nav", {"data-automation-id": "pagination"}, text="Page 1 of 1", children=[next_dis])
+            page = ControlledMockPage(
+                product_elements=[p201, p202, p203],
+                next_button=next_dis,
+                pagination_element=pag,
+                next_data_json=json.dumps(ssr_payload),
+            )
+            await scraper.scrape_category(page, 0, "Pantry", "Condiments", "https://www.walmart.com/browse/condiments")
+
+            by_url = {r["url"]: r for r in scraper.scraped_records}
+            self.assertNotIn("https://www.walmart.com/ip/pan/203", by_url, "3P seller item must be excluded")
+            r201 = by_url["https://www.walmart.com/ip/soup-mix/201"]
+            self.assertEqual(r201["regular_price"], "", "Nested shipping-only $99 offer must NEVER leak into regular_price")
+            self.assertEqual(r201["upc"], "078742000201", "Source UPC from network payload must populate upc")
+            r202 = by_url["https://www.walmart.com/ip/mustard/202"]
+            self.assertEqual(r202["regular_price"], "$0.98", "Cents price '98¢' must convert to '$0.98', not '$98.00'")
+            self.assertEqual(r202["upc"], "078742000202")
+
+        asyncio.run(_run_test())
+        if os.path.exists(test_staging): shutil.rmtree(test_staging)
+        if os.path.exists(test_out): shutil.rmtree(test_out)
+
+    def test_issue2_unknown_store_empty_ten_results_repeated_pages_and_child_terminal(self):
+        """
+        Issue 2 Regression:
+        - Unknown store raises ValueError instead of silently falling back to #4012.
+        - Page reporting '10 results' while yielding 0 valid items fails route (does not finish empty).
+        - Three repeated pages yielding the same 1 unique item fail route (stalled pagination).
+        - Child route without terminal page verification blocks publication gate.
+        """
+        import asyncio
+        import shutil
+        from config import get_store_by_target, StoreConfig, ScraperSettings
+        from checkpoint_manager import CheckpointManager
+        from walmart_scraper import WalmartProductionScraper
+
+        with self.assertRaises(ValueError):
+            get_store_by_target("UNKNOWN_99999")
+        with self.assertRaises(ValueError):
+            get_store_by_target("")
+
+        test_staging = ".staging_reg_issue2"
+        test_out = "output_reg_issue2"
+        if os.path.exists(test_staging): shutil.rmtree(test_staging)
+        if os.path.exists(test_out): shutil.rmtree(test_out)
+
+        async def _run_test():
+            store = StoreConfig("1129", "78701", "Walmart Supercenter #1129", "2525 E Anderson Ln, Austin, TX 78752")
+            settings = ScraperSettings()
+            settings.delay_between_requests_sec = 0.0
+            settings.output_directory = test_out
+
+            # Case A: Header says "10 results" but 0 valid items extracted -> must fail route
+            s1 = WalmartProductionScraper(store, settings, resume=False, crawl_date="2026-11-18", staging_dir=test_staging + "_a")
+            sponsored_only = ControlledMockElement("div", {"data-item-id": "501"}, text="Sponsored Water", children=[
+                ControlledMockElement("span", {"data-testid": "sponsored-badge"}, text="Sponsored"),
+                ControlledMockElement("span", {"data-automation-id": "product-title"}, text="Sponsored Water"),
+            ])
+            hdr = ControlledMockElement("div", {"data-automation-id": "results-count"}, text="10 results")
+            next_dis = ControlledMockElement("button", {"aria-label": "Next Page", "disabled": "true"}, text="Next")
+            pag = ControlledMockElement("nav", {"data-automation-id": "pagination"}, text="Page 1 of 1", children=[next_dis])
+            p_empty = ControlledMockPage(product_elements=[sponsored_only], next_button=next_dis, pagination_element=pag, header_element=hdr)
+            await s1.scrape_category(p_empty, 0, "Beverages", "Water", "https://www.walmart.com/browse/water")
+            self.assertIn("Beverages > Water", s1.failed_routes)
+            self.assertNotIn("Beverages > Water", s1.category_yields)
+
+            # Case B: 3 repeated pages returning the same 1 unique item -> must fail at repeated page stall
+            s2 = WalmartProductionScraper(store, settings, resume=False, crawl_date="2026-11-18", staging_dir=test_staging + "_b")
+
+            class RepeatedLoopPage(ControlledMockPage):
+                async def goto(self, url, timeout=None, wait_until=None):
+                    self.product_elements = [
+                        ControlledMockElement("div", {"data-item-id": "701"}, text="Same Milk, 1 gal", children=[
+                            ControlledMockElement("span", {"data-automation-id": "product-title"}, text="Same Milk, 1 gal"),
+                            ControlledMockElement("a", {"href": "/ip/same-milk/701"}, text="Same Milk"),
+                        ])
+                    ]
+                    if "page=3" in url:
+                        nb = ControlledMockElement("button", {"aria-label": "Next Page", "disabled": "true"}, text="Next")
+                        self.pagination_element = ControlledMockElement("nav", {"data-automation-id": "pagination"}, text="Page 3 of 3", children=[nb])
+                    else:
+                        nb = ControlledMockElement("button", {"aria-label": "Next Page"}, text="Next")
+                        self.pagination_element = ControlledMockElement("nav", {"data-automation-id": "pagination"}, text="Page 1 of 3", children=[nb])
+                    self.next_button = nb
+                    return ControlledMockResponse(200, url)
+
+            await s2.scrape_category(RepeatedLoopPage(), 0, "Dairy", "Milk", "https://www.walmart.com/browse/milk")
+            self.assertIn("Dairy > Milk", s2.failed_routes)
+            self.assertNotIn("Dairy > Milk", s2.category_yields)
+
+        asyncio.run(_run_test())
+
+        # Case C: Missing child route terminal verification blocks gate
+        mgr = CheckpointManager("1129", "2026-11-18", staging_dir=test_staging + "_c", output_dir=test_out + "_c", store_zipcode="78701")
+        cap_id = mgr.append_raw_evidence("https://www.walmart.com/browse/dairy", {}, {"data": {}})
+        mgr.append_staging_records([{
+            "zipcode": "78701", "store_name": "Walmart #1129", "store_location": "Austin",
+            "category": "Dairy", "sub_category": "Milk", "product_title": "Milk",
+            "url": "https://www.walmart.com/ip/1", "crawl_date": "2026-11-18", "capture_id": cap_id
+        }])
+        mgr.save_checkpoint(
+            category_index=2, current_page=1,
+            completed_categories=["Dairy > Milk", "Dairy > Cheese"],
+            flushed_count=1, seen_signatures=["s1"], status="IN_PROGRESS",
+            terminal_verified_routes={"Dairy > Milk": {"terminal_verified": True, "store_number": "1129"}},
+            confirmed_store_number="1129",
+        )
+        approved, reason, _ = mgr.evaluate_publication_gate(
+            min_threshold=1,
+            required_categories=["Dairy > Milk", "Dairy > Cheese"],
+            store_fulfillment_verified=True,
+            confirmed_store_number="1129",
+        )
+        self.assertFalse(approved)
+        self.assertIn("Terminal page verification missing", reason)
+
+        for suf in ("_a", "_b", "_c", ""):
+            if os.path.exists(test_staging + suf): shutil.rmtree(test_staging + suf)
+            if os.path.exists(test_out + suf): shutil.rmtree(test_out + suf)
+
+    def test_issue3_restart_reconciliation_store_routes_date_and_per_row_evidence(self):
+        """
+        Issue 3 Regression:
+        - Restart reconciles missing staged rows and re-queues affected routes into failed_routes.
+        - Checkpoint mismatch on store_number or routes_signature resets cleanly instead of reusing wrong state.
+        - Carried-forward historical items retain original observation crawl_date.
+        - Missing or wrong-store per-row capture_id blocks publication gate.
+        """
+        import shutil
+        from checkpoint_manager import CheckpointManager, compute_routes_signature
+
+        test_stg = ".staging_reg_issue3"
+        test_out = "output_reg_issue3"
+        if os.path.exists(test_stg): shutil.rmtree(test_stg)
+        if os.path.exists(test_out): shutil.rmtree(test_out)
+
+        routes = [
+            {"category": "Beverages", "sub_category": "Water", "walmart_url": "https://www.walmart.com/cp/water"},
+            {"category": "Bakery", "sub_category": "Bread", "walmart_url": "https://www.walmart.com/cp/bread"},
+        ]
+        sig_a = compute_routes_signature(routes)
+        mgr = CheckpointManager("4012", "2026-11-18", staging_dir=test_stg, output_dir=test_out, routes_signature=sig_a, store_zipcode="75001")
+
+        # 1. Checkpoint says Water completed 10 items, but disk only has Bread (missing Water staged rows)
+        cp_state = {
+            "store_number": "4012",
+            "routes_signature": sig_a,
+            "category_index": 2,
+            "current_page": 1,
+            "completed_categories": ["Beverages > Water", "Bakery > Bread"],
+            "category_yields": {"Beverages > Water": 10, "Bakery > Bread": 2},
+            "terminal_verified_routes": {
+                "Beverages > Water": {"terminal_verified": True},
+                "Bakery > Bread": {"terminal_verified": True},
+            },
+            "failed_routes": [],
+            "flushed_records_count": 12,
+        }
+        staged_on_disk = [
+            {"category": "Bakery", "sub_category": "Bread", "product_title": "Bread 1", "zipcode": "75001"},
+            {"category": "Bakery", "sub_category": "Bread", "product_title": "Bread 2", "zipcode": "75001"},
+        ]
+        yields, failed, terminal, _, warnings = mgr.reconcile_staged_routes_on_resume(cp_state, staged_on_disk, ordered_routes=routes)
+        self.assertIn("Beverages > Water", failed)
+        self.assertNotIn("Beverages > Water", yields)
+        self.assertNotIn("Beverages > Water", terminal)
+        self.assertEqual(yields.get("Bakery > Bread"), 2)
+        self.assertTrue(len(warnings) >= 1)
+
+        # 2. Store/routes checkpoint binding rejects mismatched routes_signature
+        mgr.save_checkpoint(category_index=1, current_page=2, completed_categories=[], flushed_count=0, seen_signatures=[], routes_signature=sig_a)
+        other_sig = compute_routes_signature([{"category": "Snacks", "sub_category": "Chips", "walmart_url": "https://www.walmart.com/cp/chips"}])
+        loaded_mismatch = mgr.load_checkpoint(expected_routes_signature=other_sig)
+        self.assertEqual(loaded_mismatch["status"], "CHECKPOINT_MISMATCH_RESET")
+
+        # 3. Historical observation crawl_date preserved during carry-forward
+        mgr.store_zipcode = "75001"
+        with open(mgr.master_assortment_file, "w", encoding="utf-8") as f:
+            json.dump([{
+                "zipcode": "75001", "store_name": "Walmart #4012", "store_location": "Dallas",
+                "category": "Dairy", "sub_category": "Milk", "product_title": "Old Observed Milk",
+                "regular_price": "$3.50", "url": "https://www.walmart.com/ip/old-milk/1",
+                "upc": "078742999001", "crawl_date": "2026-10-10",
+            }], f)
+        carried = mgr.carry_forward_master_assortment([{
+            "zipcode": "75001", "store_name": "Walmart #4012", "store_location": "Dallas",
+            "category": "Beverages", "sub_category": "Water", "product_title": "Current Water",
+            "url": "https://www.walmart.com/ip/water/2", "upc": "078742999002", "crawl_date": "2026-11-18",
+        }])
+        old_row = next(r for r in carried if r["upc"] == "078742999001")
+        self.assertEqual(old_row["crawl_date"], "2026-10-10", "Carry-forward must preserve original historical observation date")
+        self.assertEqual(old_row["regular_price"], "")
+
+        # 4. Per-row evidence check blocks rows lacking matching raw evidence capture_id
+        cap_id = mgr.append_raw_evidence("https://www.walmart.com/cp/water", {}, {"data": {}})
+        mgr.append_staging_records([
+            {"zipcode": "75001", "store_name": "W", "store_location": "D", "category": "A", "sub_category": "B", "product_title": "Backed", "url": "u1", "crawl_date": "2026-11-18", "capture_id": cap_id},
+            {"zipcode": "75001", "store_name": "W", "store_location": "D", "category": "A", "sub_category": "B", "product_title": "Unbacked", "url": "u2", "crawl_date": "2026-11-18", "capture_id": ""},
+        ])
+        approved, reason, stats = mgr.evaluate_publication_gate(min_threshold=1, store_fulfillment_verified=True)
+        self.assertFalse(approved)
+        self.assertEqual(stats["unverified_rows_count"], 1)
+        self.assertIn("Evidence linkage failure", reason)
+
+        if os.path.exists(test_stg): shutil.rmtree(test_stg)
+        if os.path.exists(test_out): shutil.rmtree(test_out)
+
+    def test_issue4_same_second_releases_unique_failed_second_preserves_first_and_22_fields(self):
+        """
+        Issue 4 Regression:
+        - Two publications in the same timestamp second get distinct release directories.
+        - A failed second publication never deletes the first release directory or manifest pointer.
+        - Pre-switch verification rejects corrupted release packages before pointer update.
+        - Exported JSON contains strictly the 22 REQUIRED_FIELD_ORDER keys.
+        """
+        import shutil
+        from unittest.mock import patch
+        from checkpoint_manager import CheckpointManager
+        from validation import REQUIRED_FIELD_ORDER
+
+        test_stg = ".staging_reg_issue4"
+        test_out = "output_reg_issue4"
+        if os.path.exists(test_stg): shutil.rmtree(test_stg)
+        if os.path.exists(test_out): shutil.rmtree(test_out)
+
+        mgr = CheckpointManager("4012", "2026-11-18", staging_dir=test_stg, output_dir=test_out, store_zipcode="75001")
+        cap1 = mgr.append_raw_evidence("https://www.walmart.com/cp/1", {}, {"data": {}})
+        mgr.append_staging_records([{
+            "zipcode": "75001", "store_name": "Walmart #4012", "store_location": "Dallas",
+            "category": "Beverages", "sub_category": "Water", "product_title": "Water 1",
+            "url": "https://www.walmart.com/ip/w1/1", "upc": "078742000001", "crawl_date": "2026-11-18",
+            "capture_id": cap1,
+        }])
+
+        # Freeze time.time() to exact same second for both releases
+        with patch("checkpoint_manager.time.time", return_value=1763424000.123):
+            ok1 = mgr.promote_staging_to_production(min_threshold=1, store_fulfillment_verified=True)
+            self.assertTrue(ok1)
+            pub1 = mgr.get_active_publication()
+            self.assertIsNotNone(pub1)
+            with open(pub1["products_file"], "r", encoding="utf-8") as f:
+                exported1 = json.load(f)
+            self.assertEqual(list(exported1[0].keys()), REQUIRED_FIELD_ORDER, "Internal meta keys must be stripped on export")
+
+            # Second successful release at identical timestamp uses distinct directory
+            cap2 = mgr.append_raw_evidence("https://www.walmart.com/cp/2", {}, {"data": {}})
+            mgr.append_staging_records([{
+                "zipcode": "75001", "store_name": "Walmart #4012", "store_location": "Dallas",
+                "category": "Beverages", "sub_category": "Water", "product_title": "Water 2",
+                "url": "https://www.walmart.com/ip/w2/2", "upc": "078742000002", "crawl_date": "2026-11-18",
+                "capture_id": cap2,
+            }])
+            ok2 = mgr.promote_staging_to_production(min_threshold=1, store_fulfillment_verified=True)
+            self.assertTrue(ok2)
+            pub2 = mgr.get_active_publication()
+            self.assertNotEqual(pub1["release_id"], pub2["release_id"])
+            self.assertNotEqual(os.path.dirname(pub1["products_file"]), os.path.dirname(pub2["products_file"]))
+            self.assertTrue(os.path.exists(pub1["products_file"]), "First release directory must not be overwritten or deleted")
+
+            # Third publication fails during pre-switch verification -> pub2 must remain completely intact!
+            cap3 = mgr.append_raw_evidence("https://www.walmart.com/cp/3", {}, {"data": {}})
+            mgr.append_staging_records([{
+                "zipcode": "75001", "store_name": "Walmart #4012", "store_location": "Dallas",
+                "category": "Beverages", "sub_category": "Water", "product_title": "Water 3",
+                "url": "https://www.walmart.com/ip/w3/3", "upc": "078742000003", "crawl_date": "2026-11-18",
+                "capture_id": cap3,
+            }])
+            with patch.object(mgr, "verify_release_package", return_value=(False, "Simulated pre-switch checksum failure")):
+                ok3 = mgr.promote_staging_to_production(min_threshold=1, store_fulfillment_verified=True)
+            self.assertFalse(ok3)
+            pub_after = mgr.get_active_publication()
+            self.assertEqual(pub_after["release_id"], pub2["release_id"])
+            self.assertTrue(os.path.exists(pub2["products_file"]), "Failed later release must preserve earlier committed release")
+
+        if os.path.exists(test_stg): shutil.rmtree(test_stg)
+        if os.path.exists(test_out): shutil.rmtree(test_out)
+
+    def test_issue5_fail_closed_key_vault_budget_stops_and_azure_durable_state_sync(self):
+        """
+        Issue 5 Regression:
+        - Failed Key Vault secret lookup halts run BEFORE launching browser (CREDENTIAL_LOOKUP_FAILED).
+        - Reaching max_requests_per_run stops cleanly without promoting (STOPPED_AT_LIMIT) and syncs durable state up.
+        - Subsequent scheduled run restores durable state from Azure Blob Storage and completes cleanly.
+        """
+        import asyncio
+        import csv
+        import shutil
+        from unittest.mock import patch, MagicMock
+        from config import StoreConfig, ScraperSettings
+        import azure_integration
+        import walmart_scraper
+        from walmart_scraper import WalmartProductionScraper
+
+        test_stg = ".staging_reg_issue5"
+        test_out = "output_reg_issue5"
+        if os.path.exists(test_stg): shutil.rmtree(test_stg)
+        if os.path.exists(test_out): shutil.rmtree(test_out)
+        os.makedirs(test_stg, exist_ok=True)
+        temp_csv = os.path.join(test_stg, "cats.csv")
+        with open(temp_csv, "w", encoding="utf-8", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(["category", "sub_category", "walmart_url", "canary_upc"])
+            w.writerow(["Beverages", "Water", "https://www.walmart.com/cp/water", ""])
+
+        store = StoreConfig("4012", "75001", "Walmart Supercenter #4012", "1234 Main St, Dallas, TX 75201")
+
+        # 1. Fail-closed Key Vault lookup before Playwright launches
+        kv_settings = ScraperSettings()
+        kv_settings.azure_key_vault_url = "https://kv-broken.vault.azure.net/"
+        kv_settings.proxy_server = ""
+        kv_settings.proxy_username = ""
+        kv_settings.proxy_password = ""
+        kv_settings.staging_dir = test_stg
+        kv_settings.output_directory = test_out
+        kv_settings.categories_csv_path = temp_csv
+
+        mock_pw_fail = MagicMock(side_effect=AssertionError("Playwright must not launch when Key Vault lookup fails"))
+        mock_kv_client = MagicMock()
+        mock_kv_client.get_secret.side_effect = RuntimeError("Key Vault 403 Forbidden")
+        with patch.object(azure_integration, "AZURE_SDK_AVAILABLE", True), \
+             patch.object(azure_integration, "DefaultAzureCredential", return_value=MagicMock()), \
+             patch.object(azure_integration, "SecretClient", return_value=mock_kv_client), \
+             patch.object(walmart_scraper, "async_playwright", mock_pw_fail):
+            s_kv = WalmartProductionScraper(store, kv_settings, resume=False, crawl_date="2026-11-18", staging_dir=test_stg)
+            res_kv = asyncio.run(s_kv.run())
+        self.assertFalse(res_kv["success"])
+        self.assertEqual(res_kv["status"], "CREDENTIAL_LOOKUP_FAILED")
+        self.assertTrue(res_kv["publication_gated"])
+
+        # 2. Durable state sync + clean stop at max_requests_per_run=1, then resume on fresh container dir
+        in_memory_blobs: Dict[str, bytes] = {}
+
+        class FakeBlobDownloader:
+            def __init__(self, data: bytes):
+                self._data = data
+            def readall(self):
+                return self._data
+
+        class FakeBlobItem:
+            def __init__(self, name: str):
+                self.name = name
+
+        class FakeContainerClient:
+            def create_container(self):
+                pass
+            def upload_blob(self, name, data, overwrite=True):
+                in_memory_blobs[name] = data if isinstance(data, bytes) else bytes(data)
+            def list_blobs(self, name_starts_with=""):
+                return [FakeBlobItem(k) for k in sorted(in_memory_blobs.keys()) if k.startswith(name_starts_with)]
+            def download_blob(self, name):
+                return FakeBlobDownloader(in_memory_blobs[name])
+
+        class FakeBlobServiceClient:
+            def get_container_client(self, container_name):
+                return FakeContainerClient()
+
+        class BudgetTwoPageMockPage(ControlledMockPage):
+            def __init__(self):
+                super().__init__()
+            async def goto(self, url, timeout=None, wait_until=None):
+                if "response" in self.listeners:
+                    item_id = "902" if "page=2" in url else "901"
+                    payload = {
+                        "data": {
+                            "searchResult": {
+                                "storeId": "4012",
+                                "fulfillmentMode": "PICKUP",
+                                "itemStacks": [{"items": [{"usItemId": item_id, "upc": f"078742000{item_id}", "price": "$4.98", "fulfillment": {"pickupAvailable": True, "inStoreStock": True}}]}],
+                            }
+                        }
+                    }
+                    for h in self.listeners["response"]:
+                        await h(ControlledMockNetworkResponse(url="https://www.walmart.com/orchestra/home/graphql/browse/v1", text_content=json.dumps(payload)))
+                if "cp/water" in url:
+                    if "page=2" in url:
+                        self.product_elements = [ControlledMockElement("div", {"data-item-id": "902"}, text="Water P2", children=[
+                            ControlledMockElement("span", {"data-automation-id": "product-title"}, text="Water P2"),
+                            ControlledMockElement("a", {"href": "/ip/w2/902"}, text="W2"),
+                            ControlledMockElement("span", {"data-automation-id": "product-price"}, text="$4.98"),
+                        ])]
+                        nb = ControlledMockElement("button", {"aria-label": "Next Page", "disabled": "true"}, text="Next")
+                        self.pagination_element = ControlledMockElement("nav", {"data-automation-id": "pagination"}, text="Page 2 of 2", children=[nb])
+                    else:
+                        self.product_elements = [ControlledMockElement("div", {"data-item-id": "901"}, text="Water P1", children=[
+                            ControlledMockElement("span", {"data-automation-id": "product-title"}, text="Water P1"),
+                            ControlledMockElement("a", {"href": "/ip/w1/901"}, text="W1"),
+                            ControlledMockElement("span", {"data-automation-id": "product-price"}, text="$4.98"),
+                        ])]
+                        nb = ControlledMockElement("button", {"aria-label": "Next Page"}, text="Next")
+                        self.pagination_element = ControlledMockElement("nav", {"data-automation-id": "pagination"}, text="Page 1 of 2", children=[nb])
+                    self.next_button = nb
+                return ControlledMockResponse(200, url)
+
+        stg_run1 = test_stg + "_run1"
+        out_run1 = test_out + "_run1"
+        s_cfg1 = ScraperSettings()
+        s_cfg1.delay_between_requests_sec = 0.0
+        s_cfg1.max_requests_per_run = 1
+        s_cfg1.min_expected_records_per_run = 2
+        s_cfg1.staging_dir = stg_run1
+        s_cfg1.output_directory = out_run1
+        s_cfg1.categories_csv_path = temp_csv
+        s_cfg1.azure_storage_connection_string = "DefaultEndpointsProtocol=https;AccountName=mock;AccountKey=mock=="
+
+        fake_svc = FakeBlobServiceClient()
+        pw_r1 = ControlledMockPlaywrightContextManager(ControlledMockBrowser(ControlledMockContext(BudgetTwoPageMockPage())))
+        with patch.object(azure_integration, "BlobServiceClient", None), \
+             patch.object(azure_integration.AzureBlobPublisher, "_get_service_client", return_value=fake_svc), \
+             patch.object(walmart_scraper, "async_playwright", return_value=pw_r1), \
+             patch("asyncio.sleep", return_value=None):
+            s1 = WalmartProductionScraper(store, s_cfg1, resume=False, crawl_date="2026-11-18", staging_dir=stg_run1)
+            res1 = asyncio.run(s1.run())
+
+        self.assertFalse(res1["success"])
+        self.assertEqual(res1["status"], "STOPPED_AT_LIMIT")
+        self.assertTrue(res1["publication_gated"])
+        self.assertTrue(any(k.startswith("state/4012/staging/") for k in in_memory_blobs))
+
+        # Fresh ephemeral container directory with Azure durable state restored down
+        stg_run2 = test_stg + "_run2"
+        out_run2 = test_out + "_run2"
+        s_cfg2 = ScraperSettings()
+        s_cfg2.delay_between_requests_sec = 0.0
+        s_cfg2.max_requests_per_run = 10
+        s_cfg2.min_expected_records_per_run = 2
+        s_cfg2.staging_dir = stg_run2
+        s_cfg2.output_directory = out_run2
+        s_cfg2.categories_csv_path = temp_csv
+        s_cfg2.azure_storage_connection_string = "DefaultEndpointsProtocol=https;AccountName=mock;AccountKey=mock=="
+
+        pw_r2 = ControlledMockPlaywrightContextManager(ControlledMockBrowser(ControlledMockContext(BudgetTwoPageMockPage())))
+        with patch.object(azure_integration.AzureBlobPublisher, "_get_service_client", return_value=fake_svc), \
+             patch.object(walmart_scraper, "async_playwright", return_value=pw_r2), \
+             patch("asyncio.sleep", return_value=None):
+            s2 = WalmartProductionScraper(store, s_cfg2, resume=True, crawl_date="2026-11-18", staging_dir=stg_run2)
+            res2 = asyncio.run(s2.run())
+
+        self.assertTrue(res2["success"])
+        self.assertEqual(res2["status"], "COMPLETED")
+        self.assertEqual(res2["total_records"], 2)
+
+        for suf in ("", "_run1", "_run2"):
+            if os.path.exists(test_stg + suf): shutil.rmtree(test_stg + suf)
+            if os.path.exists(test_out + suf): shutil.rmtree(test_out + suf)
+
+    def test_issue6_verify_live_gates_cross_artifact_linkage_rejects_mismatches(self):
+        """
+        Issue 6 Regression:
+        - Live evidence referencing different stores, run_ids, or release_ids must be rejected
+          and keep live/Azure gates PENDING.
+        """
+        from verify_live_gates import evaluate_live_artifacts
+
+        ndjson = "\n".join([
+            json.dumps({"run_id": "run-A", "store_number": "4012", "message": "Page 1 yielded 24 new unique records (category total: 24)"}),
+            json.dumps({"run_id": "run-A", "store_number": "4012", "message": "Page 2 yielded 20 new unique records (category total: 44)"}),
+            json.dumps({"run_id": "run-A", "store_number": "4012", "message": "[ATOMIC PUBLISH] Promoted staging release rel-1 -> output/publication_manifest_4012.json"}),
+        ])
+        raw = json.dumps({
+            "store_number": "4012",
+            "run_id": "run-A",
+            "endpoint": "https://www.walmart.com/browse/water/1#__NEXT_DATA__",
+            "request": {"url": "https://www.walmart.com/browse/water/1"},
+            "payload": {"data": {"searchResult": {"storeId": "4012", "fulfillmentMode": "PICKUP", "itemStacks": [{"items": [{"priceInfo": {"currentPrice": {"priceString": "$4.98"}}}]}]}}},
+        })
+
+        # Mismatched store & release_id in manifest
+        res_bad = evaluate_live_artifacts(
+            ndjson_text=ndjson,
+            raw_evidence_text=raw,
+            manifest_dicts=[{"status": "COMMITTED", "store_number": "1129", "run_id": "run-B", "release_id": "rel-2", "total_records": 524}],
+        )
+        self.assertFalse(res_bad["hasVerifiedLiveUpdates"])
+        by_id = {g["id"]: g["status"] for g in res_bad["gates"]}
+        self.assertEqual(by_id["coverage"], "PENDING")
+        self.assertEqual(by_id["pickup_pricing"], "PENDING")
+        self.assertEqual(by_id["azure"], "PENDING")
+        self.assertTrue(len(res_bad["rejectedReasons"]) >= 3)
+
 
 # Controlled Mock Classes for Playwright Integration Tests
 class ControlledMockElement:

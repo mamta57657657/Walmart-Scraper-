@@ -325,8 +325,8 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#dce5ed] text-[#1e293b] flex flex-col font-sans select-text">
       {/* Primary Top Application Navigation */}
-      <header className="bg-[#00386c] text-white px-3 md:px-4 py-2 flex flex-col md:flex-row md:items-center justify-between gap-2.5 text-xs border-b border-[#002d57] shadow-sm z-30 sticky top-0">
-        <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap max-w-full pb-1 md:pb-0">
+      <header className="bg-[#00386c] text-white px-3 md:px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-xs border-b border-[#002d57] shadow-sm z-30 sticky top-0">
+        <div className="flex items-center gap-2 flex-wrap min-w-0">
           {/* Brand Spark */}
           <div className="flex items-center gap-1.5 pr-2.5 border-r border-sky-800/80 shrink-0">
             <span className="font-extrabold text-[15px] tracking-tight text-white font-sans">Walmart</span>
@@ -335,7 +335,7 @@ export default function App() {
           </div>
 
           {/* Navigation Tabs */}
-          <nav className="flex items-center gap-1 shrink-0">
+          <nav className="flex items-center gap-1 flex-wrap">
             <button
               onClick={() => setActiveTab('evidence')}
               className={`px-3 py-1.5 rounded transition-all font-semibold flex items-center gap-1.5 cursor-pointer ${
@@ -377,8 +377,8 @@ export default function App() {
               }`}
             >
               <Database className="w-3.5 h-3.5" />
-              <span>524 Retail Dataset</span>
-              <span className="bg-emerald-600 text-white text-[9px] px-1 py-0.2 rounded font-bold">STORE #4012</span>
+              <span>524 Fixture Dataset</span>
+              <span className="bg-amber-600 text-white text-[9px] px-1 py-0.2 rounded font-bold">FIXTURE #{selectedStore}</span>
             </button>
 
             <button
@@ -486,15 +486,15 @@ export default function App() {
         </div>
       </header>
 
-      {/* Reviewer Resolution: Verified In-Store Pickup Retail Dataset Banner */}
-      <div className="bg-emerald-500 text-slate-950 px-3 md:px-5 py-2 text-xs font-bold flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-600 shadow-xs z-20">
+      {/* Offline Fixture Schema & Model Banner */}
+      <div className="bg-amber-50 text-slate-950 px-3 md:px-5 py-2 text-xs font-semibold flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-amber-300 shadow-xs z-20">
         <div className="flex items-center gap-2">
-          <ShieldCheck className="w-4 h-4 shrink-0 text-slate-950" />
+          <ShieldCheck className="w-4 h-4 shrink-0 text-amber-700" />
           <span>
-            <strong className="tracking-wide uppercase bg-slate-900 text-emerald-300 px-1.5 py-0.5 rounded text-[10.5px] mr-1.5 font-mono">
-              VERIFIED RETAIL DATASET — STORE #4012 (DALLAS, TX • PICKUP CONTEXT)
+            <strong className="tracking-wide uppercase bg-slate-900 text-amber-300 px-1.5 py-0.5 rounded text-[10.5px] mr-1.5 font-mono">
+              OFFLINE FIXTURE MODEL — STORE #{selectedStore} (SCHEMA &amp; PICKUP PREVIEW)
             </strong>
-            524 authentic Walmart product records with non-sequential Walmart Item IDs, verified GS1 UPC barcodes, store-specific shelf pricing, and full curbside pickup qualification.
+            524 offline fixture product records modeling non-sequential Walmart Item IDs, UPC check digits, pickup pricing rules, and 22-field schema conformity. Live/Azure acceptance gates are tracked separately under Audit &amp; Evidence.
           </span>
         </div>
         <div className="flex items-center gap-2 shrink-0 text-[11px]">
@@ -1764,10 +1764,10 @@ export default function App() {
           <div className="bg-white rounded-lg border border-emerald-300 p-4 shadow-sm flex flex-wrap items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="bg-emerald-600 text-white font-mono font-bold text-xs px-2 py-0.5 rounded border border-emerald-700">
-                  VERIFIED RETAIL DATASET — STORE #{selectedStore} (PICKUP CONTEXT)
+                <span className="bg-amber-600 text-white font-mono font-bold text-xs px-2 py-0.5 rounded border border-amber-700">
+                  OFFLINE FIXTURE DATASET — STORE #{selectedStore} (PICKUP SCHEMA MODEL)
                 </span>
-                <h2 className="text-xl font-extrabold text-slate-900">524 Genuine Products Dataset</h2>
+                <h2 className="text-xl font-extrabold text-slate-900">524 Offline Fixture Products Dataset</h2>
                 <span className="bg-slate-100 text-slate-700 font-bold text-xs px-2 py-0.5 rounded border border-slate-200">
                   Store #{selectedStore} ({currentStoreDetails.city}, {currentStoreDetails.state})
                 </span>
@@ -1781,7 +1781,7 @@ export default function App() {
                 </button>
               </div>
               <p className="text-xs text-slate-600 mt-1 max-w-4xl leading-relaxed">
-                <strong>Provenance Classification:</strong> Independently collected Walmart product catalog featuring authentic non-sequential Walmart Item IDs, verified GS1 manufacturer barcodes with Modulo-10 check digits, store-specific shelf pricing, and verified in-store curbside pickup qualification. 100% strict 22-field sequence adherence.
+                <strong>Provenance Classification (Offline Fixture):</strong> 524 offline development fixture records modeling non-sequential Walmart Item IDs, GS1 barcodes, store-specific shelf pricing, and curbside pickup qualification with strict 22-field sequence adherence. Live proxied runs output to <code className="font-mono">/output/</code> and evaluate independently in Audit &amp; Evidence.
               </p>
             </div>
 
@@ -2304,9 +2304,9 @@ export default function App() {
               </div>
 
               <div className="bg-black/25 rounded p-2.5 border border-sky-400/30">
-                <div className="text-[10px] text-sky-200 font-bold uppercase tracking-wider">Genuine Distinct Records</div>
-                <div className="text-sm font-black text-emerald-300 mt-0.5">524 Records (0 Dupes)</div>
-                <div className="text-[10px] text-sky-100">Exceeds 500-product contest floor</div>
+                <div className="text-[10px] text-sky-200 font-bold uppercase tracking-wider">Offline Fixture Records</div>
+                <div className="text-sm font-black text-amber-300 mt-0.5">524 Model Rows (0 Dupes)</div>
+                <div className="text-[10px] text-sky-100">Schema fixture modeling 500+ floor</div>
               </div>
             </div>
           </div>
@@ -2368,14 +2368,14 @@ export default function App() {
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="font-extrabold text-slate-900 text-sm flex items-center gap-1.5">
                       <Database className="w-4 h-4 text-emerald-700" />
-                      2. Conforming Verified Retail Dataset JSON (524 Items)
+                      2. Conforming Offline Fixture Schema Dataset (524 Items)
                     </span>
-                    <span className="font-mono text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded border border-emerald-300">
-                      STORE #4012 VERIFIED
+                    <span className="font-mono text-[10px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded border border-amber-300">
+                      FIXTURE SCHEMA MODEL
                     </span>
                   </div>
                   <p className="text-slate-600 text-[11px] leading-relaxed mb-2">
-                    The dataset contains exactly <strong className="text-slate-900">524 authentic Walmart retail product records</strong> with real non-sequential Walmart Item IDs, verified GS1 manufacturer barcodes, store-specific shelf pricing for Store #4012 (Dallas, TX 75001), and full curbside pickup qualification. Every record adheres strictly to the exact 22-field sequence mandated in the specification with zero nulls (empty strings <code className="font-mono text-slate-700 bg-white px-1 rounded">''</code> for missing attributes, <code className="font-mono text-slate-700 bg-white px-1 rounded">gupc=''</code> and <code className="font-mono text-slate-700 bg-white px-1 rounded">unit_price=''</code>).
+                    The dashboard preview includes <strong className="text-slate-900">524 offline fixture demonstration records</strong> modeling non-sequential Walmart Item IDs, GS1 barcodes, store-specific shelf pricing for Store #4012 (Dallas, TX 75001), and strict 22-field adherence (empty strings <code className="font-mono text-slate-700 bg-white px-1 rounded">''</code> for missing attributes, <code className="font-mono text-slate-700 bg-white px-1 rounded">gupc=''</code> and <code className="font-mono text-slate-700 bg-white px-1 rounded">unit_price=''</code>). Live capture remains PENDING until proxied execution.
                   </p>
                   <div className="grid grid-cols-3 gap-2 bg-white p-2 rounded border border-slate-200 text-center">
                     <div>
@@ -2676,7 +2676,7 @@ export default function App() {
                   <div>
                     <span className="text-slate-500 font-medium">UPC Provenance:</span>
                     <div className="text-slate-800 font-semibold font-mono">
-                      {inspectRecord._lineage?.upc_extraction_source || 'DOM data-upc / JSON-LD gtin12 (Genuine)'}
+                      {inspectRecord._lineage?.upc_extraction_source || 'DOM data-upc / JSON-LD gtin12 (Fixture Example)'}
                     </div>
                   </div>
 
@@ -3290,14 +3290,17 @@ ALL_USA_STORES: Dict[str, StoreConfig] = {
 }
 
 def get_store_by_target(query: str) -> StoreConfig:
-    """Retrieve store by store number, state code, or city with fallback."""
-    q = query.strip().upper()
+    """Retrieve store by store number, state code, or city. Raises ValueError on unknown target."""
+    if not query or not str(query).strip():
+        raise ValueError("Store target cannot be empty. Provide a valid store number, state code, or city.")
+    raw_q = str(query).strip()
+    q = raw_q.upper()
     if q in ALL_USA_STORES:
         return ALL_USA_STORES[q]
     for s in ALL_USA_STORES.values():
-        if s.store_number == query.strip() or s.city.upper() == q:
+        if s.store_number == raw_q or s.city.upper() == q:
             return s
-    return ALL_USA_STORES["TX"]
+    raise ValueError(f"Unknown store target '{raw_q}'. Refusing silent fallback to default store.")
 `;
 
 

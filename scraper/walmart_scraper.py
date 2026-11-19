@@ -40,8 +40,8 @@ try:
         validate_dataset,
         REQUIRED_FIELD_ORDER
     )
-    from checkpoint_manager import CheckpointManager, sanitize_captured_request
-    from azure_integration import resolve_key_vault_proxy_secrets, AzureBlobPublisher
+    from checkpoint_manager import CheckpointManager, sanitize_captured_request, compute_routes_signature
+    from azure_integration import resolve_key_vault_proxy_secrets, ensure_proxy_credentials_ready, AzureBlobPublisher
 except ImportError:
     from scraper.config import StoreConfig, ScraperSettings, DEFAULT_STORES, get_settings
     from scraper.validation import (
@@ -52,8 +52,8 @@ except ImportError:
         validate_dataset,
         REQUIRED_FIELD_ORDER
     )
-    from scraper.checkpoint_manager import CheckpointManager, sanitize_captured_request
-    from scraper.azure_integration import resolve_key_vault_proxy_secrets, AzureBlobPublisher
+    from scraper.checkpoint_manager import CheckpointManager, sanitize_captured_request, compute_routes_signature
+    from scraper.azure_integration import resolve_key_vault_proxy_secrets, ensure_proxy_credentials_ready, AzureBlobPublisher
 
 # Recognized affirmative fulfillment modes (reject substrings like NOT_PICKUP or PICKUP_UNAVAILABLE)
 RECOGNIZED_AFFIRMATIVE_PICKUP_MODES = {
@@ -62,6 +62,15 @@ RECOGNIZED_AFFIRMATIVE_PICKUP_MODES = {
     "IN_STORE_PICKUP",
     "CURBSIDE_PICKUP",
     "GROCERY_PICKUP"
+}
+
+NON_PICKUP_FULFILLMENT_MODES = {
+    "SHIPPING",
+    "DELIVERY",
+    "UNSCHEDULED_DELIVERY",
+    "SHIP_TO_HOME",
+    "FC_DELIVERY",
+    "TWO_DAY_SHIPPING",
 }
 
 def is_exact_affirmative_fulfillment(mode: Any, allowed_modes: Optional[Set[str]] = None) -> bool:
@@ -90,6 +99,247 @@ def is_affirmative_availability(avail: Any) -> bool:
         return True
     return False
 
+def is_walmart_first_party_seller(obj: Any) -> bool:
+    """
+    Verifies seller identity belongs to Walmart first-party retail when seller fields exist.
+    Rejects explicit 3P / Marketplace / non-Walmart sellers.
+    """
+    if not isinstance(obj, dict):
+        return True
+    if obj.get("isThirdParty") is True or obj.get("marketplaceSeller") is True:
+        return False
+    sold_by_wmt = obj.get("soldByWalmart")
+    if sold_by_wmt is False or (isinstance(sold_by_wmt, str) and sold_by_wmt.strip().lower() in {"false", "0", "no"}):
+        return False
+
+    seller_obj = obj.get("seller") if isinstance(obj.get("seller"), dict) else {}
+    seller_type = str(obj.get("sellerType") or seller_obj.get("type") or "").strip().upper()
+    if any(tag in seller_type for tag in ("3P", "THIRD_PARTY", "MARKETPLACE", "PRO_SELLER", "EXTERNAL")):
+        return False
+
+    seller_name = str(
+        obj.get("sellerName")
+        or obj.get("sellerDisplayName")
+        or seller_obj.get("name")
+        or seller_obj.get("displayName")
+        or ""
+    ).strip()
+    if seller_name and "walmart" not in seller_name.lower():
+        return False
+
+    seller_id = str(
+        obj.get("sellerId")
+        or obj.get("catalogSellerId")
+        or seller_obj.get("id")
+        or ""
+    ).strip()
+    if seller_id and seller_id.lower() not in {"0", "walmart", "walmart.com", "wmt"}:
+        if not seller_name or "walmart" not in seller_name.lower():
+            return False
+
+    return True
+
+def extract_source_upc(itm: Dict[str, Any]) -> str:
+    """Extracts 11-14 digit retailer UPC/GTIN from item payload dictionaries."""
+    if not isinstance(itm, dict):
+        return ""
+    sources = [itm]
+    for sub_key in ("canonicalProduct", "product", "productInfo", "identifiers"):
+        sub_obj = itm.get(sub_key)
+        if isinstance(sub_obj, dict):
+            sources.append(sub_obj)
+    for src in sources:
+        for k in ("upc", "gtin12", "gtin13", "gtin", "gtin14", "barcode"):
+            raw_val = src.get(k)
+            if raw_val is None:
+                continue
+            cleaned = re.sub(r"[\s\-]", "", str(raw_val).strip())
+            if re.match(r"^\d{11,14}$", cleaned):
+                return cleaned
+    return ""
+
+def _extract_offer_price_string(obj: Dict[str, Any]) -> str:
+    """Extracts the displayed offer price string without guessing from unrelated subtrees."""
+    if not isinstance(obj, dict):
+        return ""
+    p_info = obj.get("priceInfo") if isinstance(obj.get("priceInfo"), dict) else {}
+    curr_from_p = p_info.get("currentPrice") if isinstance(p_info.get("currentPrice"), dict) else {}
+    curr_direct = obj.get("currentPrice") if isinstance(obj.get("currentPrice"), dict) else {}
+
+    for val in (
+        p_info.get("linePrice"),
+        curr_from_p.get("priceString"),
+        curr_from_p.get("price"),
+        curr_direct.get("priceString"),
+        curr_direct.get("price"),
+        obj.get("linePrice"),
+        obj.get("priceString"),
+        obj.get("price"),
+    ):
+        if val is not None and str(val).strip():
+            return str(val).strip()
+    return ""
+
+def select_bound_pickup_offer(
+    itm: Dict[str, Any],
+    page_store_id: Optional[str],
+    page_fulfillment_mode: Optional[str],
+    target_store_id: str,
+) -> Dict[str, Any]:
+    """
+    Strictly binds an item's price to its own item ID, 1P Walmart seller, offer ID,
+    affirmative pickup fulfillment mode, and target store ID.
+    Never falls back to top-level priceInfo (e.g. $99 shipping leak) when nested offers
+    exist without a matching target-store 1P pickup offer.
+    """
+    itm_id = str(itm.get("usItemId") or itm.get("id") or "").strip()
+    source_upc = extract_source_upc(itm)
+    f_info = itm.get("fulfillment") if isinstance(itm.get("fulfillment"), dict) else {}
+    p_info = itm.get("priceInfo") if isinstance(itm.get("priceInfo"), dict) else {}
+
+    item_pickup_avail = f_info.get("pickupAvailable") if f_info else None
+    item_instore_stock = f_info.get("inStoreStock") if f_info else None
+    if item_pickup_avail is None and isinstance(itm.get("availabilityStatusV2"), dict):
+        avail_val = str(itm["availabilityStatusV2"].get("value") or "").upper()
+        if avail_val == "IN_STOCK":
+            item_pickup_avail = True
+            item_instore_stock = True
+        elif avail_val in {"OUT_OF_STOCK", "NOT_AVAILABLE"}:
+            item_pickup_avail = False
+            item_instore_stock = False
+
+    # Collect nested candidate offers if provided
+    candidate_offers: List[Dict[str, Any]] = []
+    for key in ("offers", "fulfillmentOptions", "fulfillmentOptionList", "fulfillmentSummaries"):
+        val = itm.get(key)
+        if isinstance(val, list):
+            candidate_offers.extend([o for o in val if isinstance(o, dict)])
+    if f_info:
+        for key in ("pickupOptions", "offers", "fulfillmentOptions"):
+            val = f_info.get(key)
+            if isinstance(val, list):
+                candidate_offers.extend([o for o in val if isinstance(o, dict)])
+        if isinstance(f_info.get("pickup"), dict):
+            candidate_offers.append(f_info["pickup"])
+    if isinstance(p_info.get("offer"), dict):
+        candidate_offers.append(p_info["offer"])
+
+    item_seller_ok = is_walmart_first_party_seller(itm)
+
+    if candidate_offers:
+        for off in candidate_offers:
+            off_item_id = str(off.get("usItemId") or off.get("itemId") or "").strip()
+            if off_item_id and itm_id and off_item_id != itm_id:
+                continue
+            if not is_walmart_first_party_seller(off) or not item_seller_ok:
+                continue
+
+            off_store = (
+                off.get("storeId")
+                or off.get("fulfillmentStoreId")
+                or off.get("pickupStoreId")
+                or off.get("nodeId")
+            )
+            off_fulfill = (
+                off.get("fulfillmentMode")
+                or off.get("fulfillmentType")
+                or off.get("fulfillmentOption")
+                or off.get("mode")
+            )
+            if not is_exact_affirmative_fulfillment(off_fulfill):
+                continue
+
+            resolved_store = str(off_store) if off_store is not None else (
+                str(itm.get("storeId") or page_store_id) if (itm.get("storeId") or page_store_id) is not None else None
+            )
+            if not resolved_store or resolved_store != str(target_store_id):
+                continue
+
+            off_avail = off.get("pickupAvailable")
+            if off_avail is None:
+                off_avail = off.get("available")
+            if off_avail is None:
+                off_avail = item_pickup_avail
+
+            off_stock = off.get("inStoreStock") if off.get("inStoreStock") is not None else item_instore_stock
+            off_price = _extract_offer_price_string(off)
+            off_id = str(off.get("offerId") or off.get("id") or "").strip()
+
+            return {
+                "store_id": resolved_store,
+                "fulfillment_mode": str(off_fulfill).strip().upper(),
+                "pickup_available": off_avail,
+                "in_store_stock": off_stock,
+                "observed_sale_price": off_price,
+                "offer_id": off_id,
+                "source_upc": source_upc,
+                "seller_ok": True,
+                "nested_offers_evaluated": True,
+            }
+
+        # Nested offers existed but NONE bound cleanly to target store 1P pickup!
+        # Strictly refuse fallback to top-level priceInfo (prevents $99 shipping/wrong-store leakage).
+        item_store_raw = itm.get("storeId") or (f_info.get("storeId") if f_info else None) or page_store_id
+        return {
+            "store_id": str(item_store_raw) if item_store_raw is not None else None,
+            "fulfillment_mode": "NON_PICKUP_OFFER_ONLY",
+            "pickup_available": False,
+            "in_store_stock": item_instore_stock,
+            "observed_sale_price": "",
+            "offer_id": "",
+            "source_upc": source_upc,
+            "seller_ok": item_seller_ok,
+            "nested_offers_evaluated": True,
+        }
+
+    # No nested offer list: validate top-level item/priceInfo/fulfillment directly
+    curr_p_obj = p_info.get("currentPrice") if isinstance(p_info.get("currentPrice"), dict) else {}
+    if not item_seller_ok or not is_walmart_first_party_seller(p_info) or not is_walmart_first_party_seller(curr_p_obj):
+        return {
+            "store_id": str(itm.get("storeId") or page_store_id) if (itm.get("storeId") or page_store_id) is not None else None,
+            "fulfillment_mode": str(itm.get("fulfillmentMode") or page_fulfillment_mode or ""),
+            "pickup_available": False,
+            "in_store_stock": item_instore_stock,
+            "observed_sale_price": "",
+            "offer_id": str(curr_p_obj.get("offerId") or p_info.get("offerId") or itm.get("offerId") or "").strip(),
+            "source_upc": source_upc,
+            "seller_ok": False,
+            "nested_offers_evaluated": False,
+        }
+
+    item_store = (
+        curr_p_obj.get("storeId")
+        or p_info.get("storeId")
+        or (f_info.get("storeId") if f_info else None)
+        or itm.get("storeId")
+        or page_store_id
+    )
+    item_fulfill = (
+        curr_p_obj.get("fulfillmentMode")
+        or curr_p_obj.get("fulfillmentType")
+        or p_info.get("fulfillmentMode")
+        or p_info.get("fulfillmentType")
+        or (f_info.get("fulfillmentMode") if f_info else None)
+        or (f_info.get("fulfillmentType") if f_info else None)
+        or itm.get("fulfillmentMode")
+        or itm.get("fulfillmentType")
+        or page_fulfillment_mode
+    )
+    line_p = _extract_offer_price_string(itm)
+    offer_id = str(curr_p_obj.get("offerId") or p_info.get("offerId") or itm.get("offerId") or "").strip()
+
+    return {
+        "store_id": str(item_store) if item_store is not None else None,
+        "fulfillment_mode": str(item_fulfill) if item_fulfill is not None else None,
+        "pickup_available": item_pickup_avail,
+        "in_store_stock": item_instore_stock,
+        "observed_sale_price": line_p,
+        "offer_id": offer_id,
+        "source_upc": source_upc,
+        "seller_ok": True,
+        "nested_offers_evaluated": False,
+    }
+
 def build_structured_category_url(base_url: str, page_number: int) -> str:
     """
     Builds category pagination URL using structured query parameter updates.
@@ -105,23 +355,76 @@ def build_structured_category_url(base_url: str, page_number: int) -> str:
     new_query = urlencode(query_params, doseq=True)
     return urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, new_query, parsed.fragment))
 
-async def check_explicit_terminal_evidence(page: Any, containers_count: int, current_page: int = 1) -> Tuple[bool, str]:
+def parse_header_results_count(header_text: str) -> Optional[int]:
+    """Parses total reported item count from a category results header string."""
+    if not header_text:
+        return None
+    m_showing = re.search(
+        r'\b(?:showing\s+)?(?:\d+\s*-\s*)?(\d+)\s+of\s+(\d+)\s+(?:results|items|products)\b',
+        header_text,
+        re.IGNORECASE,
+    )
+    if m_showing:
+        return int(m_showing.group(2))
+    m_exact = re.search(r'\b(\d+)\s+(?:results|items|products)\b', header_text, re.IGNORECASE)
+    if m_exact:
+        return int(m_exact.group(1))
+    return None
+
+async def read_page_header_results_count(page: Any) -> Optional[int]:
+    """Reads the scoped category search header total results count if present."""
+    if not page:
+        return None
+    category_count_selectors = [
+        '[data-automation-id="results-count"]',
+        '[data-testid="results-count"]',
+        '[data-automation-id="total-results"]',
+        '[data-testid="total-results"]',
+        '[data-automation-id="search-header"]',
+        '[data-testid="search-header"]',
+        '[data-automation-id="item-count"]',
+        '[data-testid="item-count"]',
+        '[data-automation-id="search-header-title"]',
+        'div[data-testid="search-results"] [data-automation-id="results-heading"]',
+        'main [data-automation-id="results-count"]',
+        '#maincontent [data-automation-id="results-count"]'
+    ]
+    for sel in category_count_selectors:
+        try:
+            elem = await page.query_selector(sel)
+            if elem:
+                txt = (await elem.inner_text()).strip()
+                if txt:
+                    parsed = parse_header_results_count(txt)
+                    if parsed is not None:
+                        return parsed
+        except Exception:
+            continue
+    return None
+
+async def check_explicit_terminal_evidence(
+    page: Any,
+    containers_count: int,
+    current_page: int = 1,
+    valid_items_count: Optional[int] = None,
+) -> Tuple[bool, str]:
     """
     Checks for explicit source terminal or total results evidence confirming category exhaustion.
     A short page (< 24 items) alone is NOT proof of exhaustion.
-    Explicit source indicators required:
-    1. Category pagination Next button present and disabled (scoped to pagination navigation,
-       rejecting generic/unrelated disabled buttons from carousels, shelves, or modals).
-    2. Explicit page indicator comparing current versus last page exactly (e.g. 'Page 1 of 1',
-       '1 of 1', 'Page 3 of 3'), rejecting substring false-positives like 'Page 1 of 10'.
-    3. Explicit source total results count matching containers_count (e.g. '5 results' for 5 items)
-       strictly scoped to the category search/header area (rejecting unrelated cart counts or reviews).
+    Also refuses to mark a category naturally exhausted if the page header reports N > 0 results
+    while 0 valid items were extracted.
     """
     if not page:
         return False, "No page object provided"
 
+    header_reported_total = await read_page_header_results_count(page)
+    effective_yield = containers_count if valid_items_count is None else valid_items_count
+    if header_reported_total is not None and header_reported_total > 0 and effective_yield <= 0:
+        return False, (
+            f"Header reports {header_reported_total} results but extracted valid items is {effective_yield}"
+        )
+
     # 1. Scoped Category Pagination Next button check
-    # Locate category pagination navigation container first to avoid matching unrelated carousel/modal buttons
     pagination_container = None
     container_selectors = [
         '[data-automation-id="pagination"]',
@@ -143,7 +446,6 @@ async def check_explicit_terminal_evidence(page: Any, containers_count: int, cur
         except Exception as ex:
             logger.debug(f"[TERMINAL EVIDENCE CHECK] Error querying pagination container {sel}: {ex}")
 
-    # Search for Next control strictly inside category pagination container
     if pagination_container:
         next_selectors = [
             '[data-automation-id="pagination-next-page"]',
@@ -173,7 +475,6 @@ async def check_explicit_terminal_evidence(page: Any, containers_count: int, cur
             except Exception as ex:
                 logger.debug(f"[TERMINAL EVIDENCE CHECK] Error querying next button inside pagination container: {ex}")
     else:
-        # Fallback only to dedicated pagination automation ID if container not wrapped in nav
         try:
             dedicated_next = await page.query_selector('[data-automation-id="pagination-next-page"], [data-testid="pagination-next-page"]')
             if dedicated_next:
@@ -187,8 +488,7 @@ async def check_explicit_terminal_evidence(page: Any, containers_count: int, cur
         except Exception as ex:
             logger.debug(f"[TERMINAL EVIDENCE CHECK] Error querying dedicated pagination Next button: {ex}")
 
-    # 2. Check for explicit exact pagination indicator: parse current vs last page numbers exactly
-    # Must NOT use substring checks like '1 of 1' in text, which incorrectly matches 'Page 1 of 10'!
+    # 2. Check for explicit exact pagination indicator
     try:
         pagination_elem = pagination_container
         if not pagination_elem:
@@ -197,7 +497,6 @@ async def check_explicit_terminal_evidence(page: Any, containers_count: int, cur
             )
         if pagination_elem:
             pag_text = (await pagination_elem.inner_text()).strip()
-            # Match exact patterns: "Page 1 of 10", "1 of 10", "Page 1 of 1", "1 of 1", "Page 3 / 3"
             m_pages = re.search(r'\b(?:page\s+)?(\d+)\s*(?:of|\/)\s*(\d+)\b', pag_text, re.IGNORECASE)
             if m_pages:
                 parsed_curr = int(m_pages.group(1))
@@ -206,13 +505,11 @@ async def check_explicit_terminal_evidence(page: Any, containers_count: int, cur
                     if current_page is None or parsed_curr == current_page or parsed_last == 1:
                         return True, f"Explicit pagination terminal indicator confirmed (page {parsed_curr} of {parsed_last}): '{pag_text}'"
                 elif parsed_curr < parsed_last:
-                    # Explicit non-terminal evidence: current page is before last page (e.g. Page 1 of 10)
                     return False, f"Explicit pagination confirms active non-terminal page ({parsed_curr} of {parsed_last}): '{pag_text}'"
     except Exception as ex:
         logger.debug(f"[TERMINAL EVIDENCE CHECK] Error querying pagination indicator: {ex}")
 
     # 3. Check for explicit source total results count matching container count
-    # Scoped strictly to category search header or results summary (rejecting generic body, cart, or review counts)
     category_count_selectors = [
         '[data-automation-id="results-count"]',
         '[data-testid="results-count"]',
@@ -253,8 +550,6 @@ async def check_explicit_terminal_evidence(page: Any, containers_count: int, cur
             pass
 
     if header_text and containers_count > 0:
-        # Match category results summary patterns, e.g.:
-        # "Showing 1-5 of 5 results", "1-5 of 5 products", "5 results", "5 products"
         m_showing = re.search(r'\b(?:showing\s+)?(?:\d+\s*-\s*)?(\d+)\s+of\s+(\d+)\s+(?:results|items|products)\b', header_text, re.IGNORECASE)
         if m_showing:
             showing_end = int(m_showing.group(1))
@@ -319,30 +614,67 @@ class WalmartProductionScraper:
         store: StoreConfig,
         settings: Optional[ScraperSettings] = None,
         resume: bool = True,
-        staging_dir: str = ".staging",
+        staging_dir: Optional[str] = None,
         crawl_date: Optional[str] = None
     ):
         self.store = store
         self.settings = settings or get_settings()
+        eff_staging = staging_dir or self.settings.staging_dir or ".staging"
         self.crawl_date = crawl_date or datetime.now().strftime("%Y-%m-%d")
+        self.configured_routes = self._load_configured_routes()
+        self.routes_signature = compute_routes_signature(self.configured_routes)
+        self.run_id = self.settings.run_id or f"run_{self.store.store_number}_{self.crawl_date}_{int(time.time() * 1000)}"
+
+        # Restore durable state from Azure Blob Storage before loading checkpoint when resuming
+        self._azure_publisher = AzureBlobPublisher(
+            connection_string=self.settings.azure_storage_connection_string,
+            account_url=self.settings.azure_storage_account_url,
+            container_name=self.settings.azure_container_name,
+        )
+        if resume and self._azure_publisher.is_configured():
+            self._azure_publisher.sync_durable_state_down(
+                self.store.store_number,
+                eff_staging,
+                self.settings.output_directory,
+            )
+
         self.checkpoint_mgr = CheckpointManager(
             store_number=self.store.store_number,
             crawl_date=self.crawl_date,
-            staging_dir=staging_dir,
-            output_dir=self.settings.output_directory
+            staging_dir=eff_staging,
+            output_dir=self.settings.output_directory,
+            routes_signature=self.routes_signature,
+            run_id=self.run_id,
+            store_zipcode=self.store.zipcode,
         )
         # Adopt reconciled crawl date from checkpoint manager (cross-midnight preservation)
         self.crawl_date = self.checkpoint_mgr.crawl_date
         self.resume = resume
-        self.checkpoint_state = self.checkpoint_mgr.load_checkpoint() if resume else {}
+        self.checkpoint_state = self.checkpoint_mgr.load_checkpoint(expected_routes_signature=self.routes_signature) if resume else {}
         self.scraped_records: List[Dict[str, str]] = self.checkpoint_mgr.load_staging_records() if resume else []
         # Reconcile seen signatures directly from staging records to eliminate drift
         self.seen_signatures = self.checkpoint_mgr.reconcile_signatures_from_staging() if resume else set()
-        self.category_yields: Dict[str, int] = dict(self.checkpoint_state.get("category_yields", {})) if resume else {}
+        if resume and self.checkpoint_state:
+            (
+                self.category_yields,
+                self.failed_routes,
+                self.terminal_verified_routes,
+                reconciled_page,
+                _reconcile_warnings,
+            ) = self.checkpoint_mgr.reconcile_staged_routes_on_resume(
+                self.checkpoint_state,
+                self.scraped_records,
+                ordered_routes=self.configured_routes,
+            )
+            self.checkpoint_state["current_page"] = reconciled_page
+        else:
+            self.category_yields = {}
+            self.failed_routes = []
+            self.terminal_verified_routes = {}
+
         self.canary_results: Dict[str, bool] = {}
-        # Restore unresolved / failed routes from checkpoint state on resume
-        self.failed_routes: List[str] = list(self.checkpoint_state.get("failed_routes", [])) if resume else []
         self.store_fulfillment_verified: bool = False
+        self.confirmed_store_number: str = str(self.checkpoint_state.get("confirmed_store_number") or "") if resume else ""
         self.observed_availability_transitions: List[Dict[str, Any]] = []
 
         # Current page context tracking & page-scoped intercepted network items
@@ -350,6 +682,33 @@ class WalmartProductionScraper:
         self.current_page_url: str = ""
         self.fatal_evidence_error: bool = False
         self.current_page_intercepted_items: Dict[str, Dict[str, Any]] = {}
+        self.requests_made: int = 0
+        self.run_start_monotonic: float = time.monotonic()
+        self.budget_stop_reason: str = ""
+
+    def _load_configured_routes(self) -> List[Dict[str, str]]:
+        csv_path = self.settings.categories_csv_path
+        if not os.path.exists(csv_path):
+            csv_path = os.path.join(os.path.dirname(__file__), "Walmart_Category_URLs.csv")
+        routes: List[Dict[str, str]] = []
+        if os.path.exists(csv_path):
+            try:
+                with open(csv_path, mode="r", encoding="utf-8") as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        routes.append(dict(row))
+            except Exception as ex:
+                logger.warning(f"[ROUTES LOAD] Failed reading {csv_path}: {ex}")
+        return routes
+
+    def _check_execution_budget(self) -> Optional[str]:
+        if self.settings.max_requests_per_run is not None and self.requests_made >= self.settings.max_requests_per_run:
+            return f"REQUEST_LIMIT_REACHED ({self.requests_made}/{self.settings.max_requests_per_run})"
+        if self.settings.max_runtime_seconds is not None:
+            elapsed = time.monotonic() - self.run_start_monotonic
+            if elapsed >= self.settings.max_runtime_seconds:
+                return f"RUNTIME_DEADLINE_REACHED ({elapsed:.1f}s/{self.settings.max_runtime_seconds:.1f}s)"
+        return None
 
     def _get_proxy_dict(self) -> Optional[Dict[str, str]]:
         if self.settings.proxy_server:
@@ -367,7 +726,7 @@ class WalmartProductionScraper:
         request_data: Optional[Dict[str, Any]] = None
     ) -> bool:
         """
-        Extracts store affinity, fulfillment mode, and item-level price/availability
+        Extracts store affinity, fulfillment mode, and strictly bound item-level price/offer/UPC
         from GraphQL XHR payloads or Next.js SSR __NEXT_DATA__ payloads, persisting
         sanitized raw evidence to disk.
         Returns True if target store_id and exact affirmative PICKUP fulfillment match.
@@ -412,11 +771,18 @@ class WalmartProductionScraper:
         if observed_store_id and str(observed_store_id) == str(self.store.store_number):
             if is_exact_affirmative_fulfillment(observed_fulfillment_mode):
                 verified = True
+                self.confirmed_store_number = str(observed_store_id)
+        elif observed_store_id and str(observed_store_id) != str(self.store.store_number):
+            logger.warning(
+                f"[STORE MISMATCH OBSERVED] Network response returned Store #{observed_store_id}, "
+                f"expected Store #{self.store.store_number}."
+            )
 
         capture_id = self.checkpoint_mgr.append_raw_evidence(
             endpoint=endpoint_url,
             request_data=request_data or {"url": endpoint_url, "method": "GET", "headers": {}},
-            response_payload=j_data
+            response_payload=j_data,
+            run_id=self.run_id,
         )
 
         for stk in stacks:
@@ -429,41 +795,26 @@ class WalmartProductionScraper:
                 if not itm_id:
                     continue
 
-                f_info = itm.get("fulfillment")
-                pickup_avail = None
-                instore_stock = None
-                if isinstance(f_info, dict):
-                    pickup_avail = f_info.get("pickupAvailable")
-                    instore_stock = f_info.get("inStoreStock")
-                elif isinstance(itm.get("availabilityStatusV2"), dict):
-                    avail_val = itm["availabilityStatusV2"].get("value")
-                    if avail_val == "IN_STOCK":
-                        pickup_avail = True
-                        instore_stock = True
-                    elif avail_val in {"OUT_OF_STOCK", "NOT_AVAILABLE"}:
-                        pickup_avail = False
-                        instore_stock = False
-
-                item_store = itm.get("storeId") or observed_store_id
-                item_fulfill = itm.get("fulfillmentMode") or observed_fulfillment_mode
-
-                p_info = itm.get("priceInfo") or {}
-                line_p = (
-                    p_info.get("linePrice")
-                    or (p_info.get("currentPrice", {}) or {}).get("priceString")
-                    or itm.get("price")
-                    or ""
+                bound = select_bound_pickup_offer(
+                    itm=itm,
+                    page_store_id=str(observed_store_id) if observed_store_id is not None else None,
+                    page_fulfillment_mode=str(observed_fulfillment_mode) if observed_fulfillment_mode is not None else None,
+                    target_store_id=self.store.store_number,
                 )
 
                 self.current_page_intercepted_items[itm_id] = {
                     "capture_id": capture_id,
+                    "item_id": itm_id,
+                    "offer_id": bound.get("offer_id", ""),
+                    "source_upc": bound.get("source_upc", ""),
+                    "seller_ok": bound.get("seller_ok", True),
                     "page_number": self.current_page_number,
                     "page_url": self.current_page_url,
-                    "store_id": str(item_store) if item_store is not None else None,
-                    "fulfillment_mode": str(item_fulfill) if item_fulfill is not None else None,
-                    "pickup_available": pickup_avail,
-                    "in_store_stock": instore_stock,
-                    "observed_sale_price": str(line_p) if line_p else "",
+                    "store_id": bound.get("store_id"),
+                    "fulfillment_mode": bound.get("fulfillment_mode"),
+                    "pickup_available": bound.get("pickup_available"),
+                    "in_store_stock": bound.get("in_store_stock"),
+                    "observed_sale_price": bound.get("observed_sale_price", ""),
                 }
 
         return verified
@@ -599,20 +950,25 @@ class WalmartProductionScraper:
         # Explicitly initialize completion and failure state before loop
         natural_completion = False
         route_failed = False
+        terminal_reason = ""
+        seen_page_fingerprints: Dict[Tuple[str, ...], int] = {}
+        consecutive_zero_new_pages = 0
 
-        # Resume logic (preserve prior staged unique-item yield when resuming mid-category)
-        if self.checkpoint_state.get("category_index") == cat_index:
-            current_page = max(1, self.checkpoint_state.get("current_page", 1))
-            prior_staged = sum(
+        # Resume logic (preserve prior staged unique-item yield when resuming)
+        prior_staged = (
+            sum(
                 1 for r in self.scraped_records
                 if r.get("category") == category and r.get("sub_category") == sub_category
             )
-            category_count = prior_staged
+            if self.resume
+            else 0
+        )
+        category_count = prior_staged
+        if self.checkpoint_state.get("category_index") == cat_index:
+            current_page = max(1, self.checkpoint_state.get("current_page", 1))
             logger.info(f"[CHECKPOINT RESUME] Resuming category '{sub_category}' from page {current_page} (prior staged items: {prior_staged})")
 
         # Explicit handling for resume beyond a safety cap:
-        # If saved current_page already exceeds max_pages_per_category without natural completion,
-        # preserve the unresolved route as incomplete in failed_routes and do not attempt to commit.
         if max_pages is not None and current_page > max_pages:
             logger.error(
                 f"[RESUME BEYOND SAFETY CAP] Category '{route_name}' resumed at page {current_page}, "
@@ -625,6 +981,14 @@ class WalmartProductionScraper:
                 self.failed_routes.append(route_name)
 
         while (max_pages is None) or (current_page <= max_pages):
+            budget_reason = self._check_execution_budget()
+            if budget_reason:
+                self.budget_stop_reason = budget_reason
+                logger.warning(
+                    f"[BUDGET STOP] Stopping cleanly before loading '{route_name}' page {current_page}: {budget_reason}"
+                )
+                break
+
             paged_url = build_structured_category_url(url, current_page)
 
             # Track current page context
@@ -639,6 +1003,7 @@ class WalmartProductionScraper:
             for attempt in range(1, self.settings.max_retries_per_page + 1):
                 try:
                     logger.info(f"Loading page {current_page} for {sub_category} (attempt {attempt})...")
+                    self.requests_made += 1
                     page_response = await page.goto(paged_url, timeout=self.settings.page_load_timeout_ms, wait_until="domcontentloaded")
                     await asyncio.sleep(self.settings.delay_between_requests_sec)
 
@@ -687,11 +1052,13 @@ class WalmartProductionScraper:
             product_elements = await page.query_selector_all('[data-item-id], [data-testid="item-stack"], div[data-testid="list-view"], div[data-testid="grid-view"]')
             logger.info(f"Page {current_page} found {len(product_elements)} product containers")
 
+            header_reported_total = await read_page_header_results_count(page)
+
             # Check for hydration failure on any page: 0 containers without explicit zero-results confirmation is an error
             if len(product_elements) == 0:
                 body_text = (await page.inner_text("body")).lower() if page else ""
                 has_zero_results = any(term in body_text for term in ["0 results", "no products found", "no items found", "we found 0"])
-                if not has_zero_results:
+                if not has_zero_results or (header_reported_total is not None and header_reported_total > 0):
                     logger.error(f"[HYDRATION FAILURE] Page {current_page} for '{route_name}' rendered 0 product containers without explicit zero-results confirmation.")
                     if route_name not in self.failed_routes:
                         self.failed_routes.append(route_name)
@@ -702,6 +1069,7 @@ class WalmartProductionScraper:
                 await self._capture_ssr_next_data_if_present(page, paged_url)
 
             page_batch: List[Dict[str, str]] = []
+            page_extracted_sigs: List[str] = []
 
             for el in product_elements:
                 try:
@@ -710,9 +1078,12 @@ class WalmartProductionScraper:
                     if is_sponsored:
                         continue
 
-                    # 2. Exclude 3P Marketplace items
+                    # 2. Exclude 3P Marketplace items from DOM text or seller attribute
                     raw_text = (await el.inner_text()) if el else ""
-                    if "sold by" in raw_text.lower() and "walmart" not in raw_text.lower():
+                    if re.search(r"\b(?:sold(?:\s+and\s+shipped)?\s+by|fulfilled\s+by)\b", raw_text, re.IGNORECASE) and "walmart" not in raw_text.lower():
+                        continue
+                    dom_seller = await el.get_attribute("data-seller-name") or ""
+                    if dom_seller and "walmart" not in dom_seller.lower():
                         continue
 
                     # 3. Fulfillment status
@@ -734,9 +1105,16 @@ class WalmartProductionScraper:
                     if not title:
                         continue
 
-                    # Traceable Page-Scoped Price Binding & Source Evidence
-                    # Exact recognized fulfillment and affirmative availability required
+                    # Traceable Page-Scoped Price/Offer/Store/Seller Binding & Source Evidence
                     bound_item = self.current_page_intercepted_items.get(raw_item_id)
+                    if bound_item and not bound_item.get("seller_ok", True):
+                        logger.debug(f"[3P SELLER EXCLUDED] Skipping item {raw_item_id} ('{title}') bound to non-Walmart seller.")
+                        continue
+
+                    dom_store_id = (await el.get_attribute("data-store-id") or "").strip()
+                    if dom_store_id and dom_store_id != str(self.store.store_number):
+                        continue
+
                     is_verified_local_pickup = False
                     is_eligible_store_assortment = True
 
@@ -747,15 +1125,17 @@ class WalmartProductionScraper:
                         observed_store = bound_item.get("store_id")
                         observed_fulfillment = bound_item.get("fulfillment_mode")
                         pickup_available = bound_item.get("pickup_available")
+                        bound_offer_id = bound_item.get("offer_id", "")
+                        dom_offer_id = (await el.get_attribute("data-offer-id") or "").strip()
 
-                        # Item must belong to target store to be in store assortment
                         if not observed_store or str(observed_store) != str(self.store.store_number):
                             is_verified_local_pickup = False
                             is_eligible_store_assortment = False
-                        # Require exact recognized affirmative fulfillment (rejects NOT_PICKUP / PICKUP_UNAVAILABLE)
+                        elif dom_offer_id and bound_offer_id and dom_offer_id != bound_offer_id:
+                            logger.warning(f"[OFFER ID MISMATCH] Item {raw_item_id} DOM offer '{dom_offer_id}' != bound offer '{bound_offer_id}'. Disqualifying price.")
+                            is_verified_local_pickup = False
                         elif not is_exact_affirmative_fulfillment(observed_fulfillment):
                             is_verified_local_pickup = False
-                        # Require affirmative availability (rejects None, False, 'false', '0', 'unavailable')
                         elif not is_affirmative_availability(pickup_available):
                             is_verified_local_pickup = False
                         else:
@@ -877,12 +1257,13 @@ class WalmartProductionScraper:
                             except Exception:
                                 pass
 
+                    if not upc and bound_item and bound_item.get("source_upc"):
+                        upc = str(bound_item["source_upc"]).strip()
+
                     # 11. Store brand detection
                     store_brand = detect_store_brand(title)
 
                     # Build conforming 22-field record
-                    # All four Walmart deal fields are strictly empty strings per mandate
-                    # Genuinely displayed source fields (title, weight, image, url) are preserved even if unavailable
                     capture_id = bound_item.get("capture_id", "") if bound_item else ""
                     record = {
                         "zipcode": self.store.zipcode,
@@ -913,6 +1294,7 @@ class WalmartProductionScraper:
                     ordered = sanitize_and_order_record(record, self.crawl_date, preserve_meta=True)
 
                     sig = f"{ordered['upc'] or ordered['url']}_{ordered['zipcode']}"
+                    page_extracted_sigs.append(sig)
                     if sig not in self.seen_signatures:
                         self.seen_signatures.add(sig)
                         page_batch.append(ordered)
@@ -921,6 +1303,49 @@ class WalmartProductionScraper:
                 except Exception as item_err:
                     logger.debug(f"[ITEM PARSE ERROR] Skipping unparseable element: {item_err}")
                     continue
+
+            # Empty page contradiction guard: if header says "10 results" (> 0) and 0 valid items extracted
+            if header_reported_total is not None and header_reported_total > 0 and len(page_extracted_sigs) == 0:
+                logger.error(
+                    f"[EMPTY PAGE CONTRADICTION] Page {current_page} for '{route_name}' reported "
+                    f"{header_reported_total} results in header but yielded 0 valid items."
+                )
+                if route_name not in self.failed_routes:
+                    self.failed_routes.append(route_name)
+                route_failed = True
+                natural_completion = False
+                break
+
+            # Repeated/stalled pagination guard: detect repeated pages returning identical item sets
+            page_fp = tuple(sorted(set(page_extracted_sigs)))
+            if current_page > 1 and page_fp and page_fp in seen_page_fingerprints:
+                prev_pg = seen_page_fingerprints[page_fp]
+                logger.error(
+                    f"[REPEATED PAGE STALL] Page {current_page} for '{route_name}' repeated identical items "
+                    f"from page {prev_pg}. Refusing false completion."
+                )
+                if route_name not in self.failed_routes:
+                    self.failed_routes.append(route_name)
+                route_failed = True
+                natural_completion = False
+                break
+            if page_fp:
+                seen_page_fingerprints[page_fp] = current_page
+
+            if len(page_batch) == 0 and len(product_elements) > 0:
+                consecutive_zero_new_pages += 1
+                if consecutive_zero_new_pages >= 2:
+                    logger.error(
+                        f"[STALLED PAGINATION] {consecutive_zero_new_pages} consecutive pages yielded 0 new unique items "
+                        f"for '{route_name}'. Marking route incomplete."
+                    )
+                    if route_name not in self.failed_routes:
+                        self.failed_routes.append(route_name)
+                    route_failed = True
+                    natural_completion = False
+                    break
+            else:
+                consecutive_zero_new_pages = 0
 
             # Flush batch via durable single page transaction
             if page_batch:
@@ -937,7 +1362,12 @@ class WalmartProductionScraper:
                 completed_categories=list(self.category_yields.keys()),
                 category_yields=self.category_yields,
                 failed_routes=self.failed_routes,
-                status="IN_PROGRESS"
+                status="IN_PROGRESS",
+                routes_signature=self.routes_signature,
+                run_id=self.run_id,
+                terminal_verified_routes=self.terminal_verified_routes,
+                confirmed_store_number=self.confirmed_store_number,
+                requests_made=self.requests_made,
             )
 
             # Check next page termination & reconcile source coverage scoped to category results pagination
@@ -1003,17 +1433,20 @@ class WalmartProductionScraper:
                 is_disabled = (attr_dis is not None) or (aria_dis == "true") or ("disabled" in cls_dis.lower())
 
             # Source coverage reconciliation:
-            # 1. Next button explicitly present and disabled in category pagination -> verified natural completion
             if is_disabled:
-                logger.info(f"[CATEGORY COMPLETE] Naturally completed at terminal page {current_page} for '{sub_category}' (Category pagination Next button disabled). Total category yield: {category_count}")
+                terminal_reason = "Category pagination Next button disabled"
+                logger.info(f"[CATEGORY COMPLETE] Naturally completed at terminal page {current_page} for '{sub_category}' ({terminal_reason}). Total category yield: {category_count}")
                 natural_completion = True
                 break
-            # 2. Next selector missing entirely -> require explicit source terminal/total evidence
             elif not has_next_btn:
-                # A short page (< 24 items) alone is NOT proof of exhaustion!
-                # Require explicit source terminal/total evidence to confirm exhaustion
-                has_term_ev, ev_reason = await check_explicit_terminal_evidence(page, len(product_elements), current_page=current_page)
+                has_term_ev, ev_reason = await check_explicit_terminal_evidence(
+                    page,
+                    len(product_elements),
+                    current_page=current_page,
+                    valid_items_count=len(page_extracted_sigs),
+                )
                 if has_term_ev:
+                    terminal_reason = ev_reason
                     logger.info(f"[CATEGORY COMPLETE] Naturally completed single-page category for '{sub_category}' verified by explicit source terminal evidence: {ev_reason}. Total yield: {category_count}")
                     natural_completion = True
                     break
@@ -1041,9 +1474,14 @@ class WalmartProductionScraper:
             current_page += 1
 
         # Durable Category Completion:
-        # Commit category completion and yields durably to disk ONLY if route succeeded naturally
         if not route_failed and natural_completion:
             self.category_yields[route_name] = category_count
+            self.terminal_verified_routes[route_name] = {
+                "terminal_verified": True,
+                "terminal_page": current_page,
+                "store_number": self.confirmed_store_number or self.store.store_number,
+                "reason": terminal_reason,
+            }
             if route_name in self.failed_routes:
                 self.failed_routes.remove(route_name)
             completed = list(self.category_yields.keys())
@@ -1054,12 +1492,14 @@ class WalmartProductionScraper:
                 completed_categories=completed,
                 category_yields=self.category_yields,
                 failed_routes=self.failed_routes,
-                status="IN_PROGRESS"
+                status="IN_PROGRESS",
+                routes_signature=self.routes_signature,
+                run_id=self.run_id,
+                terminal_verified_routes=self.terminal_verified_routes,
+                confirmed_store_number=self.confirmed_store_number,
+                requests_made=self.requests_made,
             )
-        else:
-            if route_name not in self.failed_routes:
-                self.failed_routes.append(route_name)
-            # Durably record unresolved failed route to disk so checkpoint state reflects incomplete route
+        elif self.budget_stop_reason:
             self.checkpoint_mgr.commit_page_transaction(
                 page_batch=[],
                 category_index=cat_index,
@@ -1067,7 +1507,31 @@ class WalmartProductionScraper:
                 completed_categories=list(self.category_yields.keys()),
                 category_yields=self.category_yields,
                 failed_routes=self.failed_routes,
-                status="IN_PROGRESS"
+                status="STOPPED_AT_LIMIT",
+                routes_signature=self.routes_signature,
+                run_id=self.run_id,
+                terminal_verified_routes=self.terminal_verified_routes,
+                confirmed_store_number=self.confirmed_store_number,
+                requests_made=self.requests_made,
+                stop_reason=self.budget_stop_reason,
+            )
+            logger.info(f"[CHECKPOINT BUDGET SAVED] Preserved '{route_name}' at page {current_page} ({self.budget_stop_reason}).")
+        else:
+            if route_name not in self.failed_routes:
+                self.failed_routes.append(route_name)
+            self.checkpoint_mgr.commit_page_transaction(
+                page_batch=[],
+                category_index=cat_index,
+                current_page=current_page,
+                completed_categories=list(self.category_yields.keys()),
+                category_yields=self.category_yields,
+                failed_routes=self.failed_routes,
+                status="IN_PROGRESS",
+                routes_signature=self.routes_signature,
+                run_id=self.run_id,
+                terminal_verified_routes=self.terminal_verified_routes,
+                confirmed_store_number=self.confirmed_store_number,
+                requests_made=self.requests_made,
             )
             logger.warning(f"[ROUTE UNRESOLVED] Route '{route_name}' remained incomplete (route_failed={route_failed}, natural_completion={natural_completion}). Preserving in failed_routes.")
 
@@ -1076,12 +1540,33 @@ class WalmartProductionScraper:
     async def run(self) -> Dict[str, Any]:
         """
         Executes full multi-category scrape pipeline with staging protection.
-        Interruption-safe and publication-gated.
-        Enforces complete category routes; failed/blocked routes remain incomplete.
-        Persists unresolved work and resumes directly from earliest failed/incomplete route.
+        Fails closed if configured Azure Key Vault credential lookup fails.
+        Stops cleanly on request/runtime budget limits while preserving durable state.
+        Enforces store verification and terminal verification of all required categories and child routes.
         """
         start_time = time.time()
-        logger.info(f"Starting scraper run for Store #{self.store.store_number} ({self.store.address}) on {self.crawl_date}")
+        self.run_start_monotonic = time.monotonic()
+        logger.info(
+            f"Starting scraper run {self.run_id} for Store #{self.store.store_number} "
+            f"({self.store.address}) on {self.crawl_date}"
+        )
+
+        # Fail closed BEFORE launching Chromium if Key Vault lookup fails
+        creds_ok, creds_reason = ensure_proxy_credentials_ready(self.settings)
+        if not creds_ok:
+            logger.error(
+                f"[AZURE KEY VAULT FAIL-CLOSED] Halting run {self.run_id} for Store #{self.store.store_number}: {creds_reason}"
+            )
+            return {
+                "success": False,
+                "status": "CREDENTIAL_LOOKUP_FAILED",
+                "reason": creds_reason,
+                "error": "CREDENTIAL_LOOKUP_FAILED",
+                "run_id": self.run_id,
+                "store": f"Walmart #{self.store.store_number}",
+                "total_records": len(self.scraped_records),
+                "publication_gated": True,
+            }
 
         if async_playwright is None:
             logger.error("[DEPENDENCY ERROR] 'playwright' Python library is not installed in the current environment. To run live browser collection, install via 'pip install playwright && playwright install chromium' or run in Azure Container App using scraper/Dockerfile.")
@@ -1110,9 +1595,6 @@ class WalmartProductionScraper:
             except Exception as nd_err:
                 logger.debug(f"[NDJSON HANDLER] Could not attach run-scoped live NDJSON handler: {nd_err}")
 
-        # Hydrate proxy credentials from Azure Key Vault if configured
-        resolve_key_vault_proxy_secrets(self.settings)
-
         interrupted_signal: Optional[str] = None
         previous_handlers: Dict[int, Any] = {}
 
@@ -1128,7 +1610,7 @@ class WalmartProductionScraper:
         except Exception:
             previous_handlers = {}
 
-        categories_to_scrape: List[Dict[str, str]] = []
+        categories_to_scrape: List[Dict[str, str]] = list(self.configured_routes)
         required_category_names: List[str] = []
         browser = None
 
@@ -1161,26 +1643,18 @@ class WalmartProductionScraper:
                     return {
                         "success": False,
                         "reason": "Store context and fulfillment verification failed.",
+                        "run_id": self.run_id,
+                        "store": f"Walmart #{self.store.store_number}",
                         "total_records": len(self.scraped_records),
                         "publication_gated": True
                     }
 
-                # Load taxonomy CSV
-                csv_path = self.settings.categories_csv_path
-                if not os.path.exists(csv_path):
-                    csv_path = os.path.join(os.path.dirname(__file__), "Walmart_Category_URLs.csv")
-
-                if os.path.exists(csv_path):
-                    with open(csv_path, mode="r", encoding="utf-8") as f:
-                        reader = csv.DictReader(f)
-                        for row in reader:
-                            categories_to_scrape.append(row)
+                if not categories_to_scrape:
+                    categories_to_scrape = self._load_configured_routes()
 
                 logger.info(f"Loaded {len(categories_to_scrape)} category/subcategory endpoints.")
                 required_category_names = [f"{c.get('category')} > {c.get('sub_category')}" for c in categories_to_scrape]
 
-                # Resume execution: Iterate through categories, skipping already verified completed categories
-                # and retrying any unresolved or previously failed routes
                 for idx, item in enumerate(categories_to_scrape):
                     if interrupted_signal:
                         route_key = f"{item.get('category', '')} > {item.get('sub_category', '')}"
@@ -1188,33 +1662,45 @@ class WalmartProductionScraper:
                             self.failed_routes.append(route_key)
                         break
 
+                    budget_reason = self._check_execution_budget()
+                    if budget_reason:
+                        self.budget_stop_reason = budget_reason
+                        logger.warning(f"[BUDGET STOP] Cleanly stopping run {self.run_id}: {budget_reason}")
+                        break
+
                     cat = item.get("category", "")
                     sub_cat = item.get("sub_category", "")
-                    url = item.get("walmart_url", "")
+                    url = (item.get("walmart_url") or "").strip()
                     canary = item.get("canary_upc", "")
                     route_key = f"{cat} > {sub_cat}"
 
-                    # If category already durably completed and not marked failed, skip it
+                    # If category already durably completed and terminal-verified without failed status, skip it
                     if route_key in self.category_yields and route_key not in self.failed_routes:
                         logger.info(f"[RESUME SKIP] Route '{route_key}' already durably completed ({self.category_yields[route_key]} items).")
                         continue
 
-                    if url:
-                        try:
-                            await self.scrape_category(page, idx, cat, sub_cat, url, canary_upc=canary)
-                            # If route was in failed_routes and succeeded, remove from failed_routes
-                            if route_key in self.category_yields and route_key in self.failed_routes:
-                                self.failed_routes.remove(route_key)
-                        except (KeyboardInterrupt, asyncio.CancelledError) as int_err:
-                            interrupted_signal = type(int_err).__name__
-                            if route_key not in self.failed_routes:
-                                self.failed_routes.append(route_key)
-                            logger.warning(f"[RUN INTERRUPTED] Route '{route_key}' interrupted by {interrupted_signal}. Preserving checkpoint.")
+                    if not url:
+                        logger.error(f"[INVALID ROUTE] Required route '{route_key}' has empty walmart_url.")
+                        if route_key not in self.failed_routes:
+                            self.failed_routes.append(route_key)
+                        continue
+
+                    try:
+                        await self.scrape_category(page, idx, cat, sub_cat, url, canary_upc=canary)
+                        if route_key in self.category_yields and route_key in self.failed_routes:
+                            self.failed_routes.remove(route_key)
+                        if self.budget_stop_reason:
                             break
-                        except Exception as route_err:
-                            logger.error(f"[ROUTE FAILURE] Route '{route_key}' encountered unrecovered failure: {route_err}")
-                            if route_key not in self.failed_routes:
-                                self.failed_routes.append(route_key)
+                    except (KeyboardInterrupt, asyncio.CancelledError) as int_err:
+                        interrupted_signal = type(int_err).__name__
+                        if route_key not in self.failed_routes:
+                            self.failed_routes.append(route_key)
+                        logger.warning(f"[RUN INTERRUPTED] Route '{route_key}' interrupted by {interrupted_signal}. Preserving checkpoint.")
+                        break
+                    except Exception as route_err:
+                        logger.error(f"[ROUTE FAILURE] Route '{route_key}' encountered unrecovered failure: {route_err}")
+                        if route_key not in self.failed_routes:
+                            self.failed_routes.append(route_key)
 
                 if browser is not None:
                     await browser.close()
@@ -1242,7 +1728,6 @@ class WalmartProductionScraper:
                     pass
 
         # Compute resume pointer: points to earliest unresolved/failed category index
-        # Never advance category_index to total count when unresolved work remains!
         earliest_unresolved_idx = len(categories_to_scrape)
         for i, item in enumerate(categories_to_scrape):
             rk = f"{item.get('category')} > {item.get('sub_category')}"
@@ -1250,12 +1735,24 @@ class WalmartProductionScraper:
                 earliest_unresolved_idx = i
                 break
 
-        has_unresolved = (len(self.failed_routes) > 0) or (earliest_unresolved_idx < len(categories_to_scrape)) or (interrupted_signal is not None)
+        has_unresolved = (
+            (len(self.failed_routes) > 0)
+            or (earliest_unresolved_idx < len(categories_to_scrape))
+            or (interrupted_signal is not None)
+            or bool(self.budget_stop_reason)
+        )
         final_cat_idx = earliest_unresolved_idx if has_unresolved else len(categories_to_scrape)
-        final_status = "INTERRUPTED" if interrupted_signal else ("PARTIAL_WITH_FAILURES" if has_unresolved else "COMPLETED")
+        if interrupted_signal:
+            final_status = "INTERRUPTED"
+        elif self.budget_stop_reason:
+            final_status = "STOPPED_AT_LIMIT"
+        elif has_unresolved:
+            final_status = "PARTIAL_WITH_FAILURES"
+        else:
+            final_status = "COMPLETED"
 
-        # Commit final completed or partial checkpoint state with failed_routes
-        preserved_page = self.checkpoint_mgr.load_checkpoint().get("current_page", 1) if has_unresolved else 1
+        # Commit final completed or partial checkpoint state
+        preserved_page = self.checkpoint_mgr.load_checkpoint(expected_routes_signature=self.routes_signature).get("current_page", 1) if has_unresolved else 1
         self.checkpoint_mgr.save_checkpoint(
             category_index=final_cat_idx,
             current_page=preserved_page,
@@ -1264,7 +1761,13 @@ class WalmartProductionScraper:
             seen_signatures=list(self.seen_signatures),
             status=final_status,
             category_yields=self.category_yields,
-            failed_routes=self.failed_routes
+            failed_routes=self.failed_routes,
+            routes_signature=self.routes_signature,
+            run_id=self.run_id,
+            terminal_verified_routes=self.terminal_verified_routes,
+            confirmed_store_number=self.confirmed_store_number,
+            requests_made=self.requests_made,
+            stop_reason=self.budget_stop_reason,
         )
 
         runtime_sec = int(time.time() - start_time)
@@ -1272,28 +1775,34 @@ class WalmartProductionScraper:
         minutes, seconds = divmod(remainder, 60)
         runtime_str = f"{hours}h {minutes}m" if hours > 0 else f"{minutes}m {seconds}s"
 
-        # Incomplete-Run Publication Protection Gate Evaluation with atomic committed pointer
+        # Incomplete-Run / Budget-Stop Publication Protection Gate
         if interrupted_signal:
             is_promoted = False
             logger.warning(f"[PROTECTION ACTIVE] Run interrupted ({interrupted_signal}); previous committed delivery preserved intact.")
+        elif self.budget_stop_reason:
+            is_promoted = False
+            logger.warning(f"[PROTECTION ACTIVE] Stopped cleanly at budget limit ({self.budget_stop_reason}); staging checkpoint preserved and prior delivery untouched.")
         else:
             is_promoted = self.checkpoint_mgr.promote_staging_to_production(
                 min_threshold=self.settings.min_expected_records_per_run,
                 required_categories=required_category_names,
                 failed_routes=self.failed_routes,
-                store_fulfillment_verified=self.store_fulfillment_verified
+                store_fulfillment_verified=self.store_fulfillment_verified,
+                terminal_verified_routes=self.terminal_verified_routes,
+                confirmed_store_number=self.confirmed_store_number,
+                run_id=self.run_id,
             )
 
         azure_pub_result: Dict[str, Any] = {"uploaded": False, "reason": "Not promoted or Azure not configured"}
-        if is_promoted:
-            publisher = AzureBlobPublisher(
-                connection_string=self.settings.azure_storage_connection_string,
-                account_url=self.settings.azure_storage_account_url,
-                container_name=self.settings.azure_container_name,
+        if self._azure_publisher.is_configured():
+            self._azure_publisher.sync_durable_state_up(
+                self.store.store_number,
+                self.checkpoint_mgr.staging_dir,
+                self.checkpoint_mgr.output_dir,
             )
-            if publisher.is_configured():
+            if is_promoted:
                 active_manifest = self.checkpoint_mgr.get_active_publication()
-                azure_pub_result = publisher.publish_committed_release(active_manifest)
+                azure_pub_result = self._azure_publisher.publish_committed_release(active_manifest)
                 if azure_pub_result.get("uploaded") and active_manifest:
                     try:
                         updated_manifest = dict(active_manifest)
@@ -1308,7 +1817,10 @@ class WalmartProductionScraper:
         return {
             "success": is_promoted,
             "status": final_status,
+            "run_id": self.run_id,
             "total_records": len(self.scraped_records),
+            "requests_made": self.requests_made,
+            "stop_reason": self.budget_stop_reason,
             "runtime": runtime_str,
             "store": f"Walmart #{self.store.store_number}",
             "location": self.store.address,
@@ -1331,12 +1843,30 @@ if __name__ == "__main__":
     parser.add_argument("--store", default=os.getenv("STORE_TARGET", DEFAULT_STORES[0].store_number), help="Store number, state code, or ZIP code")
     parser.add_argument("--crawl-date", default=None, help="Crawl date YYYY-MM-DD")
     parser.add_argument("--no-resume", action="store_true", help="Start fresh instead of resuming from checkpoint")
-    parser.add_argument("--staging-dir", default=".staging", help="Staging and checkpoint directory")
+    parser.add_argument("--staging-dir", default=os.getenv("STAGING_DIR", ".staging"), help="Staging and checkpoint directory")
+    parser.add_argument("--output-dir", default=os.getenv("OUTPUT_DIR", "output"), help="Output directory")
+    parser.add_argument("--max-requests", type=int, default=None, help="Optional maximum page requests per invocation")
+    parser.add_argument("--max-runtime-sec", type=float, default=None, help="Optional maximum runtime budget in seconds")
     args = parser.parse_args()
 
-    store = get_store_by_target(args.store)
+    try:
+        store = get_store_by_target(args.store)
+    except ValueError as err:
+        logger.error(f"[INVALID STORE CONFIG] {err}")
+        print(json.dumps({"success": False, "error": "INVALID_STORE_TARGET", "reason": str(err)}, indent=2))
+        sys.exit(2)
+
+    settings = get_settings()
+    settings.staging_dir = args.staging_dir
+    settings.output_directory = args.output_dir
+    if args.max_requests is not None:
+        settings.max_requests_per_run = args.max_requests
+    if args.max_runtime_sec is not None:
+        settings.max_runtime_seconds = args.max_runtime_sec
+
     scraper = WalmartProductionScraper(
         store,
+        settings=settings,
         resume=not args.no_resume,
         staging_dir=args.staging_dir,
         crawl_date=args.crawl_date,
@@ -1356,4 +1886,6 @@ if __name__ == "__main__":
     except Exception as gate_err:
         logger.debug(f"[GATE EVALUATOR] Skipped live status refresh: {gate_err}")
     print("Scraper Execution Completed:", json.dumps(result, indent=2))
+    if result.get("error") == "CREDENTIAL_LOOKUP_FAILED":
+        sys.exit(1)
 

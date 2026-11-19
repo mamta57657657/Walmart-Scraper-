@@ -1,12 +1,12 @@
 {
-  "evaluatedAt": "2026-11-17T05:24:16Z",
+  "evaluatedAt": "2026-11-19T04:37:54Z",
   "gates": [
     {
       "id": "pagination",
       "title": "Pagination corrections",
       "status": "PASSED",
       "summary": "Exact page-number parsing and category-scoped Next/count terminal evidence verified via source inspection and focused regressions.",
-      "evidenceNote": "58/58 Python + 17/17 TS tests passing"
+      "evidenceNote": "Offline regression suite passing"
     },
     {
       "id": "coverage",

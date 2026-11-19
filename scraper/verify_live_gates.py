@@ -108,6 +108,61 @@ def _extract_store_pickup_from_capture(capture: Dict[str, Any]) -> Dict[str, Any
     }
 
 
+def _extract_artifact_identities(text: str, manifests: List[Dict[str, Any]]) -> Dict[str, set]:
+    stores = set()
+    runs = set()
+    releases = set()
+
+    for line in text.splitlines():
+        s = line.strip()
+        if not s:
+            continue
+        if s.startswith("{"):
+            try:
+                obj = json.loads(s)
+                if isinstance(obj, dict):
+                    if obj.get("store_number"):
+                        stores.add(str(obj["store_number"]).strip())
+                    if obj.get("run_id") and str(obj["run_id"]).strip().lower() != "unspecified":
+                        runs.add(str(obj["run_id"]).strip())
+                    if obj.get("release_id"):
+                        releases.add(str(obj["release_id"]).strip())
+            except Exception:
+                pass
+
+    for m in re.finditer(r"(?:Store\s*#|store_number=)([0-9A-Za-z_-]+)", text, re.IGNORECASE):
+        stores.add(m.group(1).strip())
+    for m in re.finditer(r"publication_manifest_([0-9A-Za-z_-]+)\.json", text, re.IGNORECASE):
+        stores.add(m.group(1).strip())
+    for m in re.finditer(r"(?:Starting scraper run\s+|run_id=)([A-Za-z0-9._-]+)", text):
+        rid = m.group(1).strip()
+        if rid.lower() != "unspecified":
+            runs.add(rid)
+    for m in re.finditer(
+        r"(?:\[ATOMIC PUBLISH\]\s+Promoted staging release|\[PROMOTION COMPLETE\]\s+Successfully committed release|\[AZURE BLOB PUBLISHED\]\s+Release)\s+([A-Za-z0-9._-]+)",
+        text,
+        re.IGNORECASE,
+    ):
+        releases.add(m.group(1).strip())
+    for m in re.finditer(r"releases/([A-Za-z0-9._-]+)/", text):
+        releases.add(m.group(1).strip())
+
+    for man in manifests:
+        if man.get("store_number"):
+            stores.add(str(man["store_number"]).strip())
+        if man.get("run_id") and str(man["run_id"]).strip().lower() != "unspecified":
+            runs.add(str(man["run_id"]).strip())
+        if man.get("release_id"):
+            releases.add(str(man["release_id"]).strip())
+        for blob_k in ("azure_products_blob", "azure_evidence_blob"):
+            bv = str(man.get(blob_k) or "")
+            mb = re.search(r"releases/([A-Za-z0-9._-]+)/", bv)
+            if mb:
+                releases.add(mb.group(1).strip())
+
+    return {"stores": stores, "runs": runs, "releases": releases}
+
+
 def evaluate_live_artifacts(
     ndjson_text: str = "",
     raw_evidence_text: str = "",
@@ -125,7 +180,7 @@ def evaluate_live_artifacts(
             "title": "Pagination corrections",
             "status": "PASSED",
             "summary": "Exact page-number parsing and category-scoped Next/count terminal evidence verified via source inspection and focused regressions.",
-            "evidenceNote": "58/58 Python + 17/17 TS tests passing",
+            "evidenceNote": "Offline regression suite passing",
         },
         {
             "id": "coverage",
@@ -164,8 +219,12 @@ def evaluate_live_artifacts(
     raw_is_fixture = bool(raw_evidence_text.strip()) and _contains_any(raw_evidence_text, OFFLINE_FIXTURE_MARKERS)
     if raw_is_fixture:
         rejected_reasons.append("Raw evidence file contains offline fixture markers.")
+    azure_is_fixture = bool(azure_log_text.strip()) and _contains_any(azure_log_text, OFFLINE_FIXTURE_MARKERS)
+    if azure_is_fixture:
+        rejected_reasons.append("Azure log contains offline fixture markers.")
 
     effective_ndjson = "" if ndjson_is_fixture else ndjson_text
+    effective_azure = "" if azure_is_fixture else azure_log_text
     ndjson_msgs = []
     for line in effective_ndjson.splitlines():
         s = line.strip()
@@ -190,45 +249,15 @@ def evaluate_live_artifacts(
         if m.get("status") == "COMMITTED" and int(m.get("total_records") or 0) > 0:
             live_committed.append(m)
 
-    # Gate 2: Full catalog coverage (multi-page listing with increasing unique yield)
-    page_matches = re.findall(
-        r"Page\s+(\d+)\s+yielded\s+(\d+)\s+new\s+unique\s+records\s+\(category\s+total:\s+(\d+)\)",
-        combined_ndjson,
-        re.IGNORECASE,
-    )
-    pages_seen = sorted({int(p) for p, _, _ in page_matches})
-    totals_seen = [int(t) for _, _, t in page_matches]
-    has_increasing_multipage_yield = (
-        len(totals_seen) >= 2
-        and (
-            totals_seen[-1] > totals_seen[0]
-            or any(int(p) >= 2 and int(y) > 0 and int(t) > int(y) for p, y, t in page_matches)
-        )
-    )
-    has_perimeter_block = _contains_any(combined_ndjson, PERIMETER_BLOCK_MARKERS)
-    if (
-        len(pages_seen) >= 2
-        and max(pages_seen) >= 2
-        and has_increasing_multipage_yield
-        and not has_perimeter_block
-    ):
-        g = by_id["coverage"]
-        g["status"] = "PASSED"
-        g["summary"] = (
-            f"Verified live multi-page traversal across pages {', '.join(map(str, pages_seen))} "
-            f"with growing unique yield (category total reached {max(totals_seen)})."
-        )
-        if live_committed:
-            cm = live_committed[0]
-            g["evidenceNote"] = f"Committed {cm.get('total_records')} records ({cm.get('crawl_date', '')})"
-        else:
-            g["evidenceNote"] = f"Live pages {'->'.join(map(str, pages_seen))} verified"
-        g["verifiedAt"] = now_iso
+    # Extract per-artifact store/run/release identities to verify cross-artifact linkage
+    ndjson_ids = _extract_artifact_identities("\n".join([effective_ndjson, combined_ndjson]), [])
+    manifest_ids = _extract_artifact_identities("", live_committed)
+    azure_ids = _extract_artifact_identities(effective_azure, [])
+    raw_stores = set()
+    raw_runs = set()
+    raw_verified_captures = []
 
-    # Gate 3: Live Walmart Pickup pricing
     if not raw_is_fixture and raw_evidence_text.strip():
-        verified_store = ""
-        verified_mode = ""
         saw_blocked = False
         for line in raw_evidence_text.splitlines():
             s = line.strip()
@@ -250,21 +279,90 @@ def evaluate_live_artifacts(
                 and info["fulfillment_mode"] in AFFIRMATIVE_PICKUP_MODES
                 and info["has_item_price"]
             ):
-                verified_store = info["store_id"]
-                verified_mode = info["fulfillment_mode"]
-                break
-
-        if verified_store:
-            g = by_id["pickup_pricing"]
-            g["status"] = "PASSED"
-            g["summary"] = (
-                f"Verified live Walmart network capture returning Store #{verified_store}, "
-                f"fulfillment mode {verified_mode}, and item-level pricing."
-            )
-            g["evidenceNote"] = f"Store #{verified_store} • {verified_mode} live capture verified"
-            g["verifiedAt"] = now_iso
-        elif saw_blocked:
+                cap_store = str(cap.get("store_number") or info["store_id"]).strip()
+                cap_run = str(cap.get("run_id") or "").strip()
+                raw_stores.add(cap_store)
+                if cap_run and cap_run.lower() != "unspecified":
+                    raw_runs.add(cap_run)
+                raw_verified_captures.append((cap_store, info["fulfillment_mode"], cap_run))
+        if not raw_verified_captures and saw_blocked:
             rejected_reasons.append("Raw evidence capture hit Walmart perimeter challenge ('Robot or human?').")
+
+    # Enforce cross-artifact linkage on store_number, run_id, and release_id
+    all_stores = ndjson_ids["stores"] | raw_stores | manifest_ids["stores"] | azure_ids["stores"]
+    store_mismatch = len(all_stores) > 1
+    if store_mismatch:
+        rejected_reasons.append(
+            f"Cross-artifact store_number mismatch detected ({', '.join(sorted(all_stores))}); live evidence must reference the same store."
+        )
+
+    run_sets = [s for s in (ndjson_ids["runs"], manifest_ids["runs"], azure_ids["runs"]) if len(s) > 0]
+    run_mismatch = False
+    if len(run_sets) >= 2:
+        shared_runs = set.intersection(*run_sets)
+        if not shared_runs:
+            run_mismatch = True
+    if raw_runs and (ndjson_ids["runs"] or manifest_ids["runs"]):
+        known_runs = ndjson_ids["runs"] | manifest_ids["runs"]
+        if known_runs and not (raw_runs & known_runs):
+            run_mismatch = True
+    if run_mismatch:
+        rejected_reasons.append("Cross-artifact run_id mismatch detected; live artifacts belong to different runs.")
+
+    release_sets = [s for s in (ndjson_ids["releases"], manifest_ids["releases"], azure_ids["releases"]) if len(s) > 0]
+    release_mismatch = len(release_sets) >= 2 and not set.intersection(*release_sets)
+    if release_mismatch:
+        rejected_reasons.append("Cross-artifact release_id mismatch detected; NDJSON, manifest, and Azure logs must reference the same release.")
+
+    linkage_valid = not (store_mismatch or run_mismatch or release_mismatch)
+
+    # Gate 2: Full catalog coverage (multi-page listing with increasing unique yield)
+    page_matches = re.findall(
+        r"Page\s+(\d+)\s+yielded\s+(\d+)\s+new\s+unique\s+records\s+\(category\s+total:\s+(\d+)\)",
+        combined_ndjson,
+        re.IGNORECASE,
+    )
+    pages_seen = sorted({int(p) for p, _, _ in page_matches})
+    totals_seen = [int(t) for _, _, t in page_matches]
+    has_increasing_multipage_yield = (
+        len(totals_seen) >= 2
+        and (
+            totals_seen[-1] > totals_seen[0]
+            or any(int(p) >= 2 and int(y) > 0 and int(t) > int(y) for p, y, t in page_matches)
+        )
+    )
+    has_perimeter_block = _contains_any(combined_ndjson, PERIMETER_BLOCK_MARKERS)
+    if (
+        linkage_valid
+        and len(pages_seen) >= 2
+        and max(pages_seen) >= 2
+        and has_increasing_multipage_yield
+        and not has_perimeter_block
+    ):
+        g = by_id["coverage"]
+        g["status"] = "PASSED"
+        g["summary"] = (
+            f"Verified live multi-page traversal across pages {', '.join(map(str, pages_seen))} "
+            f"with growing unique yield (category total reached {max(totals_seen)})."
+        )
+        if live_committed:
+            cm = live_committed[0]
+            g["evidenceNote"] = f"Committed {cm.get('total_records')} records ({cm.get('crawl_date', '')})"
+        else:
+            g["evidenceNote"] = f"Live pages {'->'.join(map(str, pages_seen))} verified"
+        g["verifiedAt"] = now_iso
+
+    # Gate 3: Live Walmart Pickup pricing
+    if linkage_valid and raw_verified_captures:
+        verified_store, verified_mode, _ = raw_verified_captures[0]
+        g = by_id["pickup_pricing"]
+        g["status"] = "PASSED"
+        g["summary"] = (
+            f"Verified live Walmart network capture returning Store #{verified_store}, "
+            f"fulfillment mode {verified_mode}, and item-level pricing."
+        )
+        g["evidenceNote"] = f"Store #{verified_store} • {verified_mode} live capture verified"
+        g["verifiedAt"] = now_iso
 
     # Gate 4: Interruption and recovery
     saw_protection = bool(
@@ -278,7 +376,7 @@ def evaluate_live_artifacts(
         bool(re.search(r"\[PROMOTION(?:\s+COMPLETE)?\]|\[ATOMIC PUBLISH\]|\"status\":\s*\"COMPLETED\"", combined_ndjson, re.IGNORECASE))
         or len(live_committed) > 0
     )
-    if saw_protection and (saw_resume_complete or len(live_committed) > 0):
+    if linkage_valid and saw_protection and (saw_resume_complete or len(live_committed) > 0):
         g = by_id["recovery"]
         g["status"] = "PASSED"
         g["summary"] = "Verified observed run interruption/failure preserving prior committed delivery alongside successful checkpoint resumption."
@@ -302,13 +400,14 @@ def evaluate_live_artifacts(
         ),
         None,
     )
-    combined_az = "\n".join(p for p in (combined_ndjson, azure_log_text) if p)
+    combined_az = "\n".join(p for p in (combined_ndjson, effective_azure) if p)
     az_log_ok = (
-        not _contains_any(combined_az, OFFLINE_FIXTURE_MARKERS)
+        bool(combined_az.strip())
+        and not _contains_any(combined_az, OFFLINE_FIXTURE_MARKERS)
         and bool(re.search(r"\[AZURE BLOB PUBLISHED\]", combined_az, re.IGNORECASE))
-        and bool(re.search(r"publication_manifest_\d+\.json", combined_az, re.IGNORECASE))
+        and bool(re.search(r"publication_manifest_[0-9A-Za-z_-]+\.json", combined_az, re.IGNORECASE))
     )
-    if azure_manifest or az_log_ok:
+    if linkage_valid and (azure_manifest or az_log_ok):
         g = by_id["azure"]
         container = "walmart-scraper-data"
         if azure_manifest:

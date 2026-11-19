@@ -316,19 +316,19 @@ export function AuditEvidenceTab({
               <span className="bg-slate-200 text-slate-800 font-mono text-[10.5px] font-semibold px-2 py-0.5 rounded border border-slate-300">
                 Supersedes: {AUDIT_METADATA.previous_reviewed_commit.substring(0, 8)}
               </span>
-              <span className="bg-sky-700 text-white text-[11px] font-semibold px-2 py-0.5 rounded flex items-center gap-1 shadow-2xs">
+              <span className="bg-amber-700 text-white text-[11px] font-semibold px-2 py-0.5 rounded flex items-center gap-1 shadow-2xs">
                 <ShieldCheck className="w-3 h-3" />
-                Verified Retail Catalog • Live Engine in /scraper/
+                Offline Fixture Model • Production Engine in /scraper/
               </span>
               <span className="bg-purple-100 text-purple-800 text-[11px] font-semibold px-2 py-0.5 rounded border border-purple-300">
                 Release: {AUDIT_METADATA.release_tag}
               </span>
             </div>
             <h1 className="text-xl md:text-2xl font-black text-slate-900 mt-2 tracking-tight">
-              Production Harvester Audit, Live Traces & Integrity Gates
+              Production Harvester Audit, Offline Fixtures &amp; Live Gate Verifier
             </h1>
             <p className="text-xs text-slate-600 mt-1 max-w-4xl leading-relaxed">
-              Full verification suite for Authoritative Commit <code className="font-mono text-sky-800 font-bold">{AUDIT_METADATA.commit_short}</code>. Demonstrates item-level source-bound locality verification, crash-safe checkpoint recovery, and staging-protected publication gates.
+              Verification suite for Commit <code className="font-mono text-sky-800 font-bold">{AUDIT_METADATA.commit_short}</code>. Below dashboard examples are offline specification fixtures; upload linked live artifacts above (same <code className="font-mono">store_number</code>, <code className="font-mono">run_id</code>, and <code className="font-mono">release_id</code>) to verify live/Azure gates.
             </p>
           </div>
 
@@ -512,8 +512,9 @@ export function AuditEvidenceTab({
                     <ul className="list-disc pl-5 space-y-1 text-slate-300 text-[11px]">
                       <li><strong>Exact Page Parsing &amp; Scoped Terminal Controls:</strong> scrape_category parses page numbers exactly (e.g. &apos;Page 1 of 1&apos; vs &apos;Page 1 of 10&apos;) so &apos;Page 1 of 10&apos; does not trigger completion. Next buttons and total counts are scoped strictly to category results pagination and headers, rejecting unrelated carousels, modals, and cart counts.</li>
                       <li><strong>SSR __NEXT_DATA__ &amp; Multi-Page Yield Accounting:</strong> Extracts store/Pickup context from both GraphQL XHR and Next.js SSR payloads, deduplicates items across sequential pages, and initializes mid-category resume yields from staged records.</li>
-                      <li><strong>Prior Delivery Preservation &amp; Azure Release Upload:</strong> Reconciles canonical outputs by committed crawl_date, handles SIGINT/SIGTERM cleanly without promotion, and wires Key Vault proxy resolution + Azure Blob release-before-pointer upload in <code className="font-mono text-emerald-300">scraper/azure_integration.py</code> (56/56 Python tests passing).</li>
-                      <li><strong>Open Live Gates Disclosed:</strong> Live multi-page Walmart coverage, live Store #4012 Pickup capture, live crash replay, and Azure Container App Job logs remain pending residential proxy + Azure credentials.</li>
+                      <li><strong>Prior Delivery Preservation &amp; Azure Release Upload:</strong> Reconciles canonical outputs by committed crawl_date, handles SIGINT/SIGTERM and budget stops cleanly without promotion, and wires fail-closed Key Vault proxy resolution + durable Azure Blob state sync &amp; release-before-pointer upload in <code className="font-mono text-emerald-300">scraper/azure_integration.py</code> (64/64 Python + 18/18 TS tests passing).</li>
+                      <li><strong>Post-216f192 Reviewer Issues 1–6 Resolved:</strong> Strict 1P offer/store/UPC/cents binding, fail-closed store lookup &amp; terminal-route checks, restart staging reconciliation &amp; historical observation dates, collision-free release directories with pre-switch SHA-256 &amp; 22-field schema verification, budget/credential safety in Azure jobs, and cross-artifact linkage (<code className="font-mono text-emerald-300">scraper/OFFLINE_REGRESSION_REPORT.md</code>).</li>
+                      <li><strong>Open Live Gates Disclosed:</strong> Live multi-page Walmart coverage, live Store Pickup capture, live crash replay, and Azure Container App Job logs remain PENDING residential proxy + Azure credentials.</li>
                     </ul>
                   </div>
                 </div>
@@ -637,7 +638,7 @@ export function AuditEvidenceTab({
 
           {activeTraceTab === 'payload' && (
             <div>
-              <div className="text-amber-300 font-semibold mb-2">// Direct GraphQL / Orchestra Stream Extract (No Fixture Mock)</div>
+              <div className="text-amber-300 font-semibold mb-2">// Offline Specification Fixture — Sample GraphQL / Orchestra Schema Model</div>
               <pre className="text-emerald-300 text-[11px] leading-relaxed">
                 {JSON.stringify(RAW_COLLECTION_TRACE.response.sample_payload_extract, null, 2)}
               </pre>
@@ -646,7 +647,7 @@ export function AuditEvidenceTab({
 
           {activeTraceTab === 'parsed' && (
             <div>
-              <div className="text-amber-300 font-semibold mb-2">// Exact Conforming 22-Field Record Harvested for Store #{selectedStore} ({storeInfo.city}, {storeInfo.state_code})</div>
+              <div className="text-amber-300 font-semibold mb-2">// Offline Fixture 22-Field Example Record for Store #{selectedStore} ({storeInfo.city}, {storeInfo.state_code})</div>
               <pre className="text-sky-300 text-[11px] leading-relaxed">
                 {JSON.stringify(currentStoreDataset[0] || FULL_DATASET[0], null, 2)}
               </pre>
@@ -662,11 +663,11 @@ export function AuditEvidenceTab({
             <div className="flex items-center gap-2">
               <FileCheck className="w-4 h-4 text-emerald-600" />
               <h2 className="text-base font-bold text-slate-900">
-                Sampled Item Lineage Trace: Retailer JSON Input → 22-Field Output
+                Sampled Item Lineage Trace (Offline Fixture): Retailer JSON Input → 22-Field Output
               </h2>
             </div>
             <p className="text-xs text-slate-600 mt-0.5">
-              Interactive trace verifying genuine retailer field extraction for Volume Deals, Digital Coupons, Standard Assortment, and Retained Unavailable Store Items.
+              Interactive fixture trace demonstrating schema field extraction for Volume Deals, Digital Coupons, Standard Assortment, and Retained Unavailable Store Items.
             </p>
           </div>
 
@@ -832,11 +833,11 @@ export function AuditEvidenceTab({
             <div className="flex items-center gap-2">
               <Activity className="w-4 h-4 text-emerald-600" />
               <h2 className="text-base font-bold text-slate-900">
-                Observed Availability Transition Trace (Live Assortment Continuity)
+                Observed Availability Transition Trace (Offline Continuity Fixture)
               </h2>
             </div>
             <p className="text-xs text-slate-600 mt-0.5">
-              Demonstrates real multi-epoch observation of Product UPC <code>078742352011</code> transitioning from In-Stock to Out-of-Stock without artificial simulation.
+              Offline fixture modeling multi-epoch observation of Product UPC <code>078742352011</code> transitioning from In-Stock to Out-of-Stock with blanked unverified price.
             </p>
           </div>
           <span className="bg-emerald-100 text-emerald-800 text-[11px] font-semibold px-2 py-0.5 rounded border border-emerald-300">
@@ -927,7 +928,7 @@ export function AuditEvidenceTab({
             </div>
 
             <p className="text-xs text-slate-600 mt-2 leading-relaxed">
-              Demonstrates crash recovery. Scraper checkpoints category index, page cursor, and flushed hashes to survive SIGKILL or container reboot without losing already-scraped data or creating duplicates.
+              Offline simulation of crash recovery. Real backend checkpoints bind to <code className="font-mono text-slate-800">store_number</code> and <code className="font-mono text-slate-800">routes_signature</code>, reconcile missing staged rows on restart, and resume without losing prior data or creating duplicates.
             </p>
 
             <div className="mt-3 bg-slate-50 p-3 rounded border border-slate-200 space-y-2 text-xs">
@@ -1068,10 +1069,10 @@ export function AuditEvidenceTab({
                     [GATE STATUS]: APPROVED (Atomic Promotion Authorized)
                   </div>
                   <div className="text-slate-300 text-[11px]">
-                    Invariants: 524 records, 0 duplicates (0.00%), 22-field sequence verified.
+                    Invariants: 524 records, 0 duplicates (0.00%), per-row evidence &amp; 22-field schema verified.
                   </div>
                   <div className="text-sky-300 text-[11px]">
-                    Atomic Action: Staging moved to production target. Safety backup created.
+                    Atomic Action: Unique release package verified (SHA-256) before switching manifest pointer.
                   </div>
                 </>
               )}
@@ -1096,11 +1097,11 @@ export function AuditEvidenceTab({
             <div className="flex items-center gap-2">
               <Terminal className="w-4 h-4 text-sky-800" />
               <h2 className="text-base font-bold text-slate-900">
-                Machine-Readable Execution Logs (Structured NDJSON)
+                Sample Offline Fixture Execution Logs (Structured NDJSON Model)
               </h2>
             </div>
             <p className="text-xs text-slate-600 mt-0.5">
-              Live audit stream conforming to structured logging format with timestamps, component tags, and record yield counters.
+              Offline demonstration stream illustrating structured NDJSON format with timestamps, component tags, and record yield counters.
             </p>
           </div>
 
@@ -1171,18 +1172,18 @@ export function AuditEvidenceTab({
               Contest Closing: Saturday, October 24, 2026 • Review Active Post-Close
             </h2>
             <p className="text-xs text-sky-200 mt-1 max-w-3xl leading-relaxed">
-              Complete submission package delivered: versioned unencrypted Python Playwright scraper, 524 genuine products JSON (0 duplicates, 100% 22-field ordering), live store/fulfillment traces, crash-safe checkpoint recovery, and multi-location benchmarks.
+              Offline verification &amp; schema bundle: unencrypted Python Playwright scraper in <code className="font-mono">/scraper/</code>, 524 offline fixture model records (0 duplicates, 100% 22-field ordering), crash-safe checkpoint recovery, and multi-location support. Live Walmart &amp; Azure execution gates remain PENDING until real linked artifacts are captured.
             </p>
           </div>
 
           <div className="bg-sky-950/70 p-3 rounded border border-sky-700/60 shrink-0 text-xs space-y-1">
-            <div className="text-slate-300 font-semibold text-[11px]">Technical Blockers Audit:</div>
-            <div className="flex items-center gap-1.5 text-emerald-400 font-bold">
-              <CheckCircle2 className="w-4 h-4" />
-              <span>0 Remaining Critical Blockers</span>
+            <div className="text-slate-300 font-semibold text-[11px]">Acceptance Gates Summary:</div>
+            <div className="flex items-center gap-1.5 text-amber-300 font-bold">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <span>Offline Regressions Passing • Live/Azure Pending</span>
             </div>
             <div className="text-slate-400 text-[10px]">
-              Ready for private review discussions and live verification.
+              Upload linked live artifacts sharing store_number, run_id, and release_id.
             </div>
           </div>
         </div>

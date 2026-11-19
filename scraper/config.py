@@ -7,9 +7,48 @@ Externalized configuration for Microsoft Azure deployment:
 Commit: d32df9e2a47dc2beb9ce4a03c16249342e92b5e4 (HEAD -> main, revision d32df9e-rev2, dated correction checkpoint 2026-11-08)
 """
 
+import json
 import os
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional
+
+def _env_opt_int(name: str) -> Optional[int]:
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return None
+    val = int(raw)
+    return val if val > 0 else None
+
+def _env_opt_float(name: str) -> Optional[float]:
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return None
+    val = float(raw)
+    return val if val > 0 else None
+
+def _load_env_stores() -> List["StoreConfig"]:
+    raw = os.getenv("WALMART_STORES_JSON", "").strip()
+    if not raw:
+        return []
+    try:
+        parsed = json.loads(raw)
+        items = parsed.values() if isinstance(parsed, dict) else parsed
+        stores: List[StoreConfig] = []
+        for entry in items:
+            if isinstance(entry, dict) and entry.get("store_number") and entry.get("zipcode"):
+                stores.append(StoreConfig(
+                    store_number=str(entry["store_number"]).strip(),
+                    zipcode=str(entry["zipcode"]).strip(),
+                    name=str(entry.get("name") or f"Walmart Supercenter #{entry['store_number']}"),
+                    address=str(entry.get("address") or ""),
+                    state_code=str(entry.get("state_code") or "").upper(),
+                    city=str(entry.get("city") or ""),
+                    logo_url=str(entry.get("logo_url") or StoreConfig.logo_url),
+                ))
+        return stores
+    except Exception as ex:
+        raise ValueError(f"Invalid WALMART_STORES_JSON configuration: {ex}")
+
 
 @dataclass
 class StoreConfig:
@@ -90,16 +129,29 @@ ALL_USA_STORES: Dict[str, StoreConfig] = {
 
 def get_store_by_target(target: str) -> StoreConfig:
     """
-    Dynamically resolves store by 2-letter state code, store number, or zip code.
-    Defaults to Dallas Supercenter #4012 if not matched.
+    Strictly resolves configured store by 2-letter state code, store number, or zip code.
+    Checks WALMART_STORES_JSON overrides first, then DEFAULT_STORES and ALL_USA_STORES.
+    Raises ValueError for unknown or empty store targets (never falls back silently to #4012).
     """
-    clean = target.upper().strip()
+    if not target or not str(target).strip():
+        raise ValueError("Store target must not be empty; configure a known store_number, state code, or zipcode.")
+    clean = str(target).strip().upper()
+    env_stores = _load_env_stores()
+    for s in env_stores:
+        if s.store_number.upper() == clean or s.zipcode.upper() == clean or (s.state_code and s.state_code.upper() == clean):
+            return s
     if clean in ALL_USA_STORES:
         return ALL_USA_STORES[clean]
-    for s in ALL_USA_STORES.values():
-        if s.store_number == clean or s.zipcode == clean:
+    for s in DEFAULT_STORES:
+        if s.store_number.upper() == clean or s.zipcode.upper() == clean:
             return s
-    return ALL_USA_STORES["TX"]
+    for s in ALL_USA_STORES.values():
+        if s.store_number.upper() == clean or s.zipcode.upper() == clean:
+            return s
+    raise ValueError(
+        f"Unknown Walmart store target '{target}'. Refusing silent fallback to Store #4012. "
+        f"Provide a known store number/state/zipcode or configure WALMART_STORES_JSON."
+    )
 
 @dataclass
 class ScraperSettings:
@@ -116,6 +168,7 @@ class ScraperSettings:
     azure_key_vault_url: str = field(
         default_factory=lambda: os.getenv("AZURE_KEY_VAULT_URL", "")
     )
+    key_vault_lookup_error: str = ""
 
     # Residential / Datacenter Proxies
     proxy_server: str = field(default_factory=lambda: os.getenv("PROXY_SERVER", ""))
@@ -132,6 +185,8 @@ class ScraperSettings:
     min_expected_records_per_run: int = 500
     # Production pagination: None or large integer allows full pagination to EOF without artificial demo cap
     max_pages_per_category: Optional[int] = None
+    max_requests_per_run: Optional[int] = field(default_factory=lambda: _env_opt_int("MAX_REQUESTS_PER_RUN"))
+    max_runtime_seconds: Optional[float] = field(default_factory=lambda: _env_opt_float("MAX_RUNTIME_SECONDS"))
     verify_store_fulfillment: bool = True
     require_full_category_completion: bool = True
 
@@ -150,12 +205,19 @@ class ScraperSettings:
 
     # Resume & Interruption Recovery
     retry_unresolved_routes_on_resume: bool = True
+    run_id: str = field(
+        default_factory=lambda: (
+            os.getenv("RUN_ID", "").strip()
+            or os.getenv("CONTAINER_APP_JOB_EXECUTION_NAME", "").strip()
+        )
+    )
 
-    # Paths
+    # Durable State Paths (configurable via STAGING_DIR / OUTPUT_DIR for Azure Files mounts)
     categories_csv_path: str = field(
         default_factory=lambda: os.getenv("CATEGORIES_CSV_PATH", "Walmart_Category_URLs.csv")
     )
-    output_directory: str = "output"
+    staging_dir: str = field(default_factory=lambda: os.getenv("STAGING_DIR", ".staging"))
+    output_directory: str = field(default_factory=lambda: os.getenv("OUTPUT_DIR", "output"))
 
 def get_settings() -> ScraperSettings:
     return ScraperSettings()

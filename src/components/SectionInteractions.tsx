@@ -422,12 +422,12 @@ export function FilterTesterModal({ onClose }: { onClose: () => void }) {
       reason: "Contest rule: Sponsored placements prevented from creating redundant/duplicate records."
     },
     {
-      title: "Genuine Local Walmart Grocery",
+      title: "Sample Fixture: Local Walmart Grocery",
       seller: "Walmart Supercenter #4012",
       fulfillment: "Store pickup & in-store aisle confirmed",
       isSponsored: false,
       result: "ACCEPTED (100% Valid)",
-      reason: "Genuine Walmart local item with verified pickup fulfillment and local shelf pricing."
+      reason: "Offline fixture model: local Walmart item with verified 1P pickup fulfillment and store-bound pricing."
     }
   ];
 

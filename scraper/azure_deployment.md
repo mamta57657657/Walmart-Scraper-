@@ -70,7 +70,11 @@ az containerapp job create \
     AZURE_STORAGE_ACCOUNT_URL="https://stwalmartscraper.blob.core.windows.net" \
     AZURE_STORAGE_CONTAINER="walmart-scraper-data" \
     STORE_TARGET="4012" \
-    CATEGORIES_CSV_PATH="Walmart_Category_URLs.csv"
+    CATEGORIES_CSV_PATH="Walmart_Category_URLs.csv" \
+    STAGING_DIR="/mnt/walmart-state/staging" \
+    OUTPUT_DIR="/mnt/walmart-state/output" \
+    MAX_REQUESTS_PER_RUN="1200" \
+    MAX_RUNTIME_SECONDS="6000"
 ```
 
 ---
@@ -84,7 +88,7 @@ To scrape an additional Walmart store without touching code:
    ```python
    StoreConfig(store_number="1129", zipcode="78701", name="Walmart Supercenter", address="2525 E Anderson Ln, Austin, TX 78752")
    ```
-3. The scraper will automatically bind to the new store, inject cookies, lock fulfillment, and output location-tagged JSON.
+3. Unknown store targets fail fast with a configuration error rather than falling back to `#4012`.
 
 ### Adding or Modifying Categories
 1. Open `Walmart_Category_URLs.csv`.
@@ -92,10 +96,9 @@ To scrape an additional Walmart store without touching code:
    ```csv
    Bakery,Fresh Bread,https://www.walmart.com/browse/food/bakery/bread/976759_976785_1001455,078742119902
    ```
-3. The scraper reads the CSV dynamically on every execution.
+3. The scraper binds checkpoints to the CSV routes signature and verifies every required category/child route hits an explicit terminal page.
 
-### Interruption Recovery & Atomic Writes
-- If an Azure container is terminated or times out mid-run:
-  1. The dataset will not pass the 500-record threshold gate.
-  2. The atomic writer discards the incomplete `.tmp` file and preserves the prior successful run file (`.bak`).
-  3. Azure Container Job retries the execution automatically with a fresh container.
+### Durable State, Budget Limits, & Fail-Closed Security
+- **Durable State**: Mount Azure Files at `/mnt/walmart-state` (`STAGING_DIR` / `OUTPUT_DIR`) AND keep `AzureBlobPublisher.sync_durable_state_down` / `sync_durable_state_up` enabled so ephemeral Container App Job restarts resume seamlessly from the exact unresolved route and page.
+- **Request & Deadline Budgets**: When `MAX_REQUESTS_PER_RUN` or `MAX_RUNTIME_SECONDS` is reached, the job saves `STOPPED_AT_LIMIT`, syncs durable state up to Blob Storage, leaves `publication_gated=True`, and preserves the prior committed release intact.
+- **Fail-Closed Key Vault**: If `AZURE_KEY_VAULT_URL` is set and secret lookup for `PROXY-SERVER`, `PROXY-USERNAME`, or `PROXY-PASSWORD` fails, the job halts immediately with `CREDENTIAL_LOOKUP_FAILED` before launching Chromium.
