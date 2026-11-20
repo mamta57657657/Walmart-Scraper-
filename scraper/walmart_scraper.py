@@ -99,6 +99,117 @@ def is_affirmative_availability(avail: Any) -> bool:
         return True
     return False
 
+STORE_ID_KEYS = (
+    "storeId",
+    "pickupStoreId",
+    "fulfillmentStoreId",
+    "nodeId",
+    "store_id",
+    "storeNumber",
+    "pickupNodeId",
+    "fulfillmentNodeId",
+)
+
+VARIANT_ID_KEYS = (
+    "variantId",
+    "usVariantId",
+    "selectedVariantId",
+    "canonicalVariantId",
+    "primaryVariantId",
+)
+
+
+def _norm_id(val: Any) -> str:
+    if val is None or isinstance(val, (bool, dict, list)):
+        return ""
+    s = str(val).strip()
+    if s.lower() in {"", "none", "null", "undefined"}:
+        return ""
+    return s
+
+
+def collect_distinct_store_ids(
+    obj: Any,
+    exclude_price_info: bool = False,
+) -> Set[str]:
+    """
+    Collects ALL non-empty store identifiers across direct and nested store/fulfillment
+    keys without short-circuiting so conflicting store evidence (e.g. storeId='3891'
+    alongside pickupStoreId='9999') is always detected and rejected.
+    """
+    stores: Set[str] = set()
+    if not isinstance(obj, dict):
+        return stores
+
+    for k in STORE_ID_KEYS:
+        sid = _norm_id(obj.get(k))
+        if sid:
+            stores.add(sid)
+
+    nested_keys = ["store", "pickupStore", "fulfillmentStore", "fulfillment", "location", "deliveryStore"]
+    if not exclude_price_info:
+        nested_keys.extend(["priceInfo", "currentPrice"])
+
+    for nk in nested_keys:
+        sub = obj.get(nk)
+        if not isinstance(sub, dict):
+            continue
+        for k in STORE_ID_KEYS:
+            sid = _norm_id(sub.get(k))
+            if sid:
+                stores.add(sid)
+        if nk in {"store", "pickupStore", "fulfillmentStore", "deliveryStore"}:
+            sid = _norm_id(sub.get("id"))
+            if sid:
+                stores.add(sid)
+        if nk == "priceInfo" and isinstance(sub.get("currentPrice"), dict):
+            for k in STORE_ID_KEYS:
+                sid = _norm_id(sub["currentPrice"].get(k))
+                if sid:
+                    stores.add(sid)
+
+    return stores
+
+
+def extract_distinct_variant_ids(obj: Any) -> Set[str]:
+    """Extracts distinct variant identifiers from an item or offer dict."""
+    variants: Set[str] = set()
+    if not isinstance(obj, dict):
+        return variants
+    for k in VARIANT_ID_KEYS:
+        vid = _norm_id(obj.get(k))
+        if vid:
+            variants.add(vid)
+    v_sub = obj.get("variant")
+    if isinstance(v_sub, dict):
+        for k in ("variantId", "usVariantId", "id"):
+            vid = _norm_id(v_sub.get(k))
+            if vid:
+                variants.add(vid)
+    return variants
+
+
+def extract_all_item_variant_ids(itm: Dict[str, Any]) -> Set[str]:
+    """Extracts all declared variant IDs for an item, including variants/selectedVariants lists."""
+    variants = extract_distinct_variant_ids(itm)
+    for list_key in ("variants", "variantOptions", "selectedVariants"):
+        val = itm.get(list_key)
+        if isinstance(val, list):
+            for entry in val:
+                if isinstance(entry, dict):
+                    variants.update(extract_distinct_variant_ids(entry))
+                    eid = _norm_id(entry.get("id"))
+                    if eid:
+                        variants.add(eid)
+                else:
+                    eid = _norm_id(entry)
+                    if eid:
+                        variants.add(eid)
+        elif isinstance(val, dict):
+            variants.update(extract_distinct_variant_ids(val))
+    return variants
+
+
 def is_walmart_first_party_seller(obj: Any) -> bool:
     """
     Verifies seller identity belongs to Walmart first-party retail when seller fields exist.
@@ -139,6 +250,48 @@ def is_walmart_first_party_seller(obj: Any) -> bool:
 
     return True
 
+
+def has_affirmative_walmart_first_party_seller(obj: Any) -> bool:
+    """
+    Requires affirmative, explicit evidence that an offer belongs to Walmart first-party (1P).
+    Absent seller metadata fails closed (returns False).
+    """
+    if not isinstance(obj, dict):
+        return False
+    if not is_walmart_first_party_seller(obj):
+        return False
+
+    sold_by_wmt = obj.get("soldByWalmart")
+    if sold_by_wmt is True or (isinstance(sold_by_wmt, str) and sold_by_wmt.strip().lower() in {"true", "1", "yes"}):
+        return True
+
+    seller_obj = obj.get("seller") if isinstance(obj.get("seller"), dict) else {}
+    seller_type = str(obj.get("sellerType") or seller_obj.get("type") or "").strip().upper()
+    if seller_type in {"FIRST_PARTY", "1P", "WALMART", "WMT", "WALMART_1P"}:
+        return True
+
+    seller_name = str(
+        obj.get("sellerName")
+        or obj.get("sellerDisplayName")
+        or seller_obj.get("name")
+        or seller_obj.get("displayName")
+        or ""
+    ).strip().lower()
+    if "walmart" in seller_name:
+        return True
+
+    seller_id = str(
+        obj.get("sellerId")
+        or obj.get("catalogSellerId")
+        or seller_obj.get("id")
+        or ""
+    ).strip().lower()
+    if seller_id in {"0", "walmart", "walmart.com", "wmt"}:
+        return True
+
+    return False
+
+
 def extract_source_upc(itm: Dict[str, Any]) -> str:
     """Extracts 11-14 digit retailer UPC/GTIN from item payload dictionaries."""
     if not isinstance(itm, dict):
@@ -157,6 +310,7 @@ def extract_source_upc(itm: Dict[str, Any]) -> str:
             if re.match(r"^\d{11,14}$", cleaned):
                 return cleaned
     return ""
+
 
 def _extract_offer_price_string(obj: Dict[str, Any]) -> str:
     """Extracts the displayed offer price string without guessing from unrelated subtrees."""
@@ -180,6 +334,7 @@ def _extract_offer_price_string(obj: Dict[str, Any]) -> str:
             return str(val).strip()
     return ""
 
+
 def select_bound_pickup_offer(
     itm: Dict[str, Any],
     page_store_id: Optional[str],
@@ -187,15 +342,25 @@ def select_bound_pickup_offer(
     target_store_id: str,
 ) -> Dict[str, Any]:
     """
-    Strictly binds an item's price to its own item ID, 1P Walmart seller, offer ID,
-    affirmative pickup fulfillment mode, and target store ID.
-    Never falls back to top-level priceInfo (e.g. $99 shipping leak) when nested offers
-    exist without a matching target-store 1P pickup offer.
+    Strictly binds a priced offer via traceable links to:
+    - item ID (matching usItemId/itemId)
+    - variant ID (matching item variant declarations when specified)
+    - offer ID (non-empty, matching selectedOfferId when specified)
+    - affirmative first-party Walmart seller
+    - affirmative pickup fulfillment mode & availability (without conflicting modes)
+    - unambiguous, non-conflicting target store ID (never falling back to page store for bare nested offers)
+    Refuses top-level priceInfo fallback when nested offer containers exist without a traceable match.
     """
-    itm_id = str(itm.get("usItemId") or itm.get("id") or "").strip()
+    itm_id = _norm_id(itm.get("usItemId") or itm.get("id"))
     source_upc = extract_source_upc(itm)
     f_info = itm.get("fulfillment") if isinstance(itm.get("fulfillment"), dict) else {}
     p_info = itm.get("priceInfo") if isinstance(itm.get("priceInfo"), dict) else {}
+
+    item_variant_ids = extract_all_item_variant_ids(itm)
+    item_selected_variant = _norm_id(
+        itm.get("selectedVariantId") or itm.get("variantId") or itm.get("usVariantId") or itm.get("canonicalVariantId")
+    )
+    item_selected_offer = _norm_id(itm.get("selectedOfferId") or itm.get("offerId"))
 
     item_pickup_avail = f_info.get("pickupAvailable") if f_info else None
     item_instore_stock = f_info.get("inStoreStock") if f_info else None
@@ -209,87 +374,165 @@ def select_bound_pickup_offer(
             item_instore_stock = False
 
     # Collect nested candidate offers if provided
+    has_nested_container = False
     candidate_offers: List[Dict[str, Any]] = []
     for key in ("offers", "fulfillmentOptions", "fulfillmentOptionList", "fulfillmentSummaries"):
         val = itm.get(key)
         if isinstance(val, list):
+            has_nested_container = True
             candidate_offers.extend([o for o in val if isinstance(o, dict)])
+    for key in ("offer", "offerInfo"):
+        val = itm.get(key)
+        if isinstance(val, dict):
+            has_nested_container = True
+            candidate_offers.append(val)
     if f_info:
         for key in ("pickupOptions", "offers", "fulfillmentOptions"):
             val = f_info.get(key)
             if isinstance(val, list):
+                has_nested_container = True
                 candidate_offers.extend([o for o in val if isinstance(o, dict)])
         if isinstance(f_info.get("pickup"), dict):
+            has_nested_container = True
             candidate_offers.append(f_info["pickup"])
     if isinstance(p_info.get("offer"), dict):
+        has_nested_container = True
         candidate_offers.append(p_info["offer"])
+    if isinstance(p_info.get("offers"), list):
+        has_nested_container = True
+        candidate_offers.extend([o for o in p_info["offers"] if isinstance(o, dict)])
 
     item_seller_ok = is_walmart_first_party_seller(itm)
+    itm_direct_stores = collect_distinct_store_ids(itm, exclude_price_info=True)
 
-    if candidate_offers:
-        for off in candidate_offers:
-            off_item_id = str(off.get("usItemId") or off.get("itemId") or "").strip()
-            if off_item_id and itm_id and off_item_id != itm_id:
-                continue
-            if not is_walmart_first_party_seller(off) or not item_seller_ok:
-                continue
+    if has_nested_container:
+        itm_store_conflict = len(itm_direct_stores) > 1
+        saw_offer_store_conflict = False
+        if not itm_store_conflict and item_seller_ok:
+            for off in candidate_offers:
+                # 1. Traceable Item ID link (must explicitly exist on offer and match item)
+                off_us_item = _norm_id(off.get("usItemId"))
+                off_alt_item = _norm_id(off.get("itemId"))
+                if off_us_item and off_alt_item and off_us_item != off_alt_item:
+                    continue
+                off_item_id = off_us_item or off_alt_item
+                if not off_item_id or not itm_id or off_item_id != itm_id:
+                    continue
 
-            off_store = (
-                off.get("storeId")
-                or off.get("fulfillmentStoreId")
-                or off.get("pickupStoreId")
-                or off.get("nodeId")
+                # 2. Traceable Offer ID link (must exist on offer and match selectedOfferId if set)
+                off_id = _norm_id(off.get("offerId") or off.get("id"))
+                if not off_id:
+                    continue
+                if item_selected_offer and off_id != item_selected_offer:
+                    continue
+
+                # 3. Traceable Variant ID link (must exist unambiguously on offer and match item variant if declared)
+                off_variants = extract_distinct_variant_ids(off)
+                if len(off_variants) != 1:
+                    continue
+                off_variant_id = next(iter(off_variants))
+                if item_selected_variant and off_variant_id != item_selected_variant:
+                    continue
+                if item_variant_ids and off_variant_id not in item_variant_ids:
+                    continue
+
+                # 4. Affirmative First-Party Walmart Seller on offer itself (missing seller fails closed)
+                off_f_sub = off.get("fulfillment") if isinstance(off.get("fulfillment"), dict) else {}
+                if not has_affirmative_walmart_first_party_seller(off) or (off_f_sub and not is_walmart_first_party_seller(off_f_sub)):
+                    continue
+
+                # 5. Affirmative Pickup Mode without conflicting non-pickup modes
+                off_modes = [
+                    str(m).strip()
+                    for m in (
+                        off.get("fulfillmentMode"),
+                        off.get("fulfillmentType"),
+                        off.get("fulfillmentOption"),
+                        off.get("mode"),
+                        off_f_sub.get("fulfillmentMode"),
+                        off_f_sub.get("fulfillmentType"),
+                    )
+                    if m is not None and str(m).strip()
+                ]
+                if not off_modes or not all(is_exact_affirmative_fulfillment(m) for m in off_modes):
+                    continue
+                off_fulfill = off_modes[0]
+
+                # 6. Affirmative Pickup Availability
+                if off.get("pickupAvailable") is False or off.get("available") is False or off_f_sub.get("pickupAvailable") is False:
+                    continue
+                off_avail = off.get("pickupAvailable")
+                if off_avail is None:
+                    off_avail = off.get("available")
+                if off_avail is None and off_f_sub:
+                    off_avail = off_f_sub.get("pickupAvailable")
+                if off_avail is None:
+                    off_avail = item_pickup_avail
+                if not is_affirmative_availability(off_avail):
+                    continue
+
+                # 7. Unambiguous, non-conflicting target store ID ON the offer itself
+                # Never fall back to page_store_id or itm.storeId for an offer lacking its own store.
+                # Reject conflicting store IDs (e.g. storeId='3891' and pickupStoreId='9999').
+                off_stores = collect_distinct_store_ids(off, exclude_price_info=False)
+                if len(off_stores) > 1:
+                    saw_offer_store_conflict = True
+                    continue
+                if len(off_stores) != 1:
+                    continue
+                resolved_store = next(iter(off_stores))
+                if resolved_store != str(target_store_id):
+                    continue
+                if len(itm_direct_stores) == 1 and next(iter(itm_direct_stores)) != resolved_store:
+                    saw_offer_store_conflict = True
+                    continue
+
+                off_stock = (
+                    off.get("inStoreStock")
+                    if off.get("inStoreStock") is not None
+                    else (off_f_sub.get("inStoreStock") if off_f_sub.get("inStoreStock") is not None else item_instore_stock)
+                )
+                off_price = _extract_offer_price_string(off)
+
+                return {
+                    "store_id": resolved_store,
+                    "fulfillment_mode": str(off_fulfill).strip().upper(),
+                    "pickup_available": off_avail,
+                    "in_store_stock": off_stock,
+                    "observed_sale_price": off_price,
+                    "offer_id": off_id,
+                    "variant_id": off_variant_id,
+                    "source_upc": source_upc,
+                    "seller_ok": True,
+                    "nested_offers_evaluated": True,
+                    "store_conflict": False,
+                }
+
+        # Nested offers existed but NONE passed strict traceable 1P target-store pickup binding.
+        # Refuse top-level priceInfo fallback and keep eligible page store assortment with blank local money.
+        has_any_store_conflict = itm_store_conflict or saw_offer_store_conflict
+        if has_any_store_conflict and page_store_id is not None:
+            fallback_store = str(page_store_id)
+        elif len(itm_direct_stores) == 1 and next(iter(itm_direct_stores)) != str(target_store_id):
+            fallback_store = next(iter(itm_direct_stores))
+        else:
+            fallback_store = (
+                str(page_store_id)
+                if page_store_id is not None
+                else (next(iter(itm_direct_stores)) if len(itm_direct_stores) == 1 else None)
             )
-            off_fulfill = (
-                off.get("fulfillmentMode")
-                or off.get("fulfillmentType")
-                or off.get("fulfillmentOption")
-                or off.get("mode")
-            )
-            if not is_exact_affirmative_fulfillment(off_fulfill):
-                continue
-
-            resolved_store = str(off_store) if off_store is not None else (
-                str(itm.get("storeId") or page_store_id) if (itm.get("storeId") or page_store_id) is not None else None
-            )
-            if not resolved_store or resolved_store != str(target_store_id):
-                continue
-
-            off_avail = off.get("pickupAvailable")
-            if off_avail is None:
-                off_avail = off.get("available")
-            if off_avail is None:
-                off_avail = item_pickup_avail
-
-            off_stock = off.get("inStoreStock") if off.get("inStoreStock") is not None else item_instore_stock
-            off_price = _extract_offer_price_string(off)
-            off_id = str(off.get("offerId") or off.get("id") or "").strip()
-
-            return {
-                "store_id": resolved_store,
-                "fulfillment_mode": str(off_fulfill).strip().upper(),
-                "pickup_available": off_avail,
-                "in_store_stock": off_stock,
-                "observed_sale_price": off_price,
-                "offer_id": off_id,
-                "source_upc": source_upc,
-                "seller_ok": True,
-                "nested_offers_evaluated": True,
-            }
-
-        # Nested offers existed but NONE bound cleanly to target store 1P pickup!
-        # Strictly refuse fallback to top-level priceInfo (prevents $99 shipping/wrong-store leakage).
-        item_store_raw = itm.get("storeId") or (f_info.get("storeId") if f_info else None) or page_store_id
         return {
-            "store_id": str(item_store_raw) if item_store_raw is not None else None,
-            "fulfillment_mode": "NON_PICKUP_OFFER_ONLY",
+            "store_id": fallback_store,
+            "fulfillment_mode": "CONFLICTING_STORE_EVIDENCE" if has_any_store_conflict else "NON_PICKUP_OFFER_ONLY",
             "pickup_available": False,
             "in_store_stock": item_instore_stock,
             "observed_sale_price": "",
             "offer_id": "",
+            "variant_id": "",
             "source_upc": source_upc,
             "seller_ok": item_seller_ok,
             "nested_offers_evaluated": True,
+            "store_conflict": has_any_store_conflict,
         }
 
     # No nested offer list: validate top-level item/priceInfo/fulfillment directly
@@ -301,32 +544,55 @@ def select_bound_pickup_offer(
             "pickup_available": False,
             "in_store_stock": item_instore_stock,
             "observed_sale_price": "",
-            "offer_id": str(curr_p_obj.get("offerId") or p_info.get("offerId") or itm.get("offerId") or "").strip(),
+            "offer_id": _norm_id(curr_p_obj.get("offerId") or p_info.get("offerId") or itm.get("offerId")),
+            "variant_id": item_selected_variant,
             "source_upc": source_upc,
             "seller_ok": False,
             "nested_offers_evaluated": False,
+            "store_conflict": False,
         }
 
-    item_store = (
-        curr_p_obj.get("storeId")
-        or p_info.get("storeId")
-        or (f_info.get("storeId") if f_info else None)
-        or itm.get("storeId")
-        or page_store_id
-    )
-    item_fulfill = (
-        curr_p_obj.get("fulfillmentMode")
-        or curr_p_obj.get("fulfillmentType")
-        or p_info.get("fulfillmentMode")
-        or p_info.get("fulfillmentType")
-        or (f_info.get("fulfillmentMode") if f_info else None)
-        or (f_info.get("fulfillmentType") if f_info else None)
-        or itm.get("fulfillmentMode")
-        or itm.get("fulfillmentType")
-        or page_fulfillment_mode
-    )
+    flat_stores = collect_distinct_store_ids(itm, exclude_price_info=False)
+    if len(flat_stores) > 1:
+        return {
+            "store_id": str(page_store_id) if page_store_id is not None else None,
+            "fulfillment_mode": "CONFLICTING_STORE_EVIDENCE",
+            "pickup_available": False,
+            "in_store_stock": item_instore_stock,
+            "observed_sale_price": "",
+            "offer_id": "",
+            "variant_id": item_selected_variant,
+            "source_upc": source_upc,
+            "seller_ok": True,
+            "nested_offers_evaluated": False,
+            "store_conflict": True,
+        }
+
+    item_store = next(iter(flat_stores)) if len(flat_stores) == 1 else page_store_id
+    flat_modes = [
+        str(m).strip()
+        for m in (
+            curr_p_obj.get("fulfillmentMode"),
+            curr_p_obj.get("fulfillmentType"),
+            p_info.get("fulfillmentMode"),
+            p_info.get("fulfillmentType"),
+            f_info.get("fulfillmentMode") if f_info else None,
+            f_info.get("fulfillmentType") if f_info else None,
+            itm.get("fulfillmentMode"),
+            itm.get("fulfillmentType"),
+        )
+        if m is not None and str(m).strip()
+    ]
+    if flat_modes:
+        if any(not is_exact_affirmative_fulfillment(m) for m in flat_modes):
+            item_fulfill = next(m for m in flat_modes if not is_exact_affirmative_fulfillment(m))
+        else:
+            item_fulfill = flat_modes[0]
+    else:
+        item_fulfill = page_fulfillment_mode
+
     line_p = _extract_offer_price_string(itm)
-    offer_id = str(curr_p_obj.get("offerId") or p_info.get("offerId") or itm.get("offerId") or "").strip()
+    offer_id = _norm_id(curr_p_obj.get("offerId") or p_info.get("offerId") or itm.get("offerId"))
 
     return {
         "store_id": str(item_store) if item_store is not None else None,
@@ -335,9 +601,11 @@ def select_bound_pickup_offer(
         "in_store_stock": item_instore_stock,
         "observed_sale_price": line_p,
         "offer_id": offer_id,
+        "variant_id": item_selected_variant,
         "source_upc": source_upc,
         "seller_ok": True,
         "nested_offers_evaluated": False,
+        "store_conflict": False,
     }
 
 def build_structured_category_url(base_url: str, page_number: int) -> str:
@@ -756,11 +1024,21 @@ class WalmartProductionScraper:
         loc_ctx = page_props.get("locationContext", {}) if isinstance(page_props, dict) else {}
         pickup_store = loc_ctx.get("pickupStore", {}) if isinstance(loc_ctx, dict) else {}
 
-        observed_store_id = (
-            search_res.get("storeId")
-            or data_root.get("storeId")
-            or (pickup_store.get("storeId") if isinstance(pickup_store, dict) else None)
-        )
+        page_store_candidates = [
+            _norm_id(v)
+            for v in (
+                search_res.get("storeId"),
+                search_res.get("pickupStoreId"),
+                search_res.get("fulfillmentStoreId"),
+                data_root.get("storeId"),
+                pickup_store.get("storeId") if isinstance(pickup_store, dict) else None,
+            )
+            if _norm_id(v)
+        ]
+        distinct_page_stores = set(page_store_candidates)
+        page_store_conflict = len(distinct_page_stores) > 1
+        observed_store_id = None if page_store_conflict else (next(iter(distinct_page_stores)) if distinct_page_stores else None)
+
         observed_fulfillment_mode = (
             search_res.get("fulfillmentMode")
             or data_root.get("fulfillmentMode")
@@ -768,7 +1046,12 @@ class WalmartProductionScraper:
         )
 
         verified = False
-        if observed_store_id and str(observed_store_id) == str(self.store.store_number):
+        if page_store_conflict:
+            logger.warning(
+                f"[STORE CONFLICT OBSERVED] Conflicting page store IDs returned: {sorted(distinct_page_stores)} "
+                f"(expected Store #{self.store.store_number})."
+            )
+        elif observed_store_id and str(observed_store_id) == str(self.store.store_number):
             if is_exact_affirmative_fulfillment(observed_fulfillment_mode):
                 verified = True
                 self.confirmed_store_number = str(observed_store_id)
@@ -806,8 +1089,10 @@ class WalmartProductionScraper:
                     "capture_id": capture_id,
                     "item_id": itm_id,
                     "offer_id": bound.get("offer_id", ""),
+                    "variant_id": bound.get("variant_id", ""),
                     "source_upc": bound.get("source_upc", ""),
                     "seller_ok": bound.get("seller_ok", True),
+                    "store_conflict": bool(bound.get("store_conflict", False) or page_store_conflict),
                     "page_number": self.current_page_number,
                     "page_url": self.current_page_url,
                     "store_id": bound.get("store_id"),
@@ -1126,13 +1411,21 @@ class WalmartProductionScraper:
                         observed_fulfillment = bound_item.get("fulfillment_mode")
                         pickup_available = bound_item.get("pickup_available")
                         bound_offer_id = bound_item.get("offer_id", "")
+                        bound_variant_id = bound_item.get("variant_id", "")
                         dom_offer_id = (await el.get_attribute("data-offer-id") or "").strip()
+                        dom_variant_id = (await el.get_attribute("data-variant-id") or "").strip()
 
-                        if not observed_store or str(observed_store) != str(self.store.store_number):
+                        if bound_item.get("store_conflict"):
+                            logger.warning(f"[STORE CONFLICT] Item {raw_item_id} has conflicting store evidence; retaining blank local money.")
+                            is_verified_local_pickup = False
+                        elif not observed_store or str(observed_store) != str(self.store.store_number):
                             is_verified_local_pickup = False
                             is_eligible_store_assortment = False
-                        elif dom_offer_id and bound_offer_id and dom_offer_id != bound_offer_id:
+                        elif dom_offer_id and (not bound_offer_id or dom_offer_id != bound_offer_id):
                             logger.warning(f"[OFFER ID MISMATCH] Item {raw_item_id} DOM offer '{dom_offer_id}' != bound offer '{bound_offer_id}'. Disqualifying price.")
+                            is_verified_local_pickup = False
+                        elif dom_variant_id and (not bound_variant_id or dom_variant_id != bound_variant_id):
+                            logger.warning(f"[VARIANT ID MISMATCH] Item {raw_item_id} DOM variant '{dom_variant_id}' != bound variant '{bound_variant_id}'. Disqualifying price.")
                             is_verified_local_pickup = False
                         elif not is_exact_affirmative_fulfillment(observed_fulfillment):
                             is_verified_local_pickup = False

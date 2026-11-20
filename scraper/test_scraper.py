@@ -2713,6 +2713,7 @@ class TestWalmartScraperRules(unittest.TestCase):
                                         {
                                             # Correct Store #4012 1P PICKUP offer priced at 98¢ alongside $99 wrong-store offer
                                             "usItemId": "202",
+                                            "variantId": "VAR-202",
                                             "gtin12": "078742000202",
                                             "priceInfo": {"currentPrice": {"priceString": "$99.00"}},
                                             "offers": [
@@ -2723,7 +2724,9 @@ class TestWalmartScraperRules(unittest.TestCase):
                                                     "priceInfo": {"currentPrice": {"priceString": "$99.00"}},
                                                 },
                                                 {
+                                                    "usItemId": "202",
                                                     "offerId": "OFF-4012-202",
+                                                    "variantId": "VAR-202",
                                                     "storeId": "4012",
                                                     "fulfillmentMode": "PICKUP",
                                                     "pickupAvailable": True,
@@ -2754,7 +2757,7 @@ class TestWalmartScraperRules(unittest.TestCase):
                 ControlledMockElement("a", {"href": "/ip/soup-mix/201"}, text="Soup Mix"),
                 ControlledMockElement("span", {"data-automation-id": "product-price"}, text="$99.00"),
             ])
-            p202 = ControlledMockElement("div", {"data-item-id": "202", "data-offer-id": "OFF-4012-202"}, text="Mustard Packet, 8 oz", children=[
+            p202 = ControlledMockElement("div", {"data-item-id": "202", "data-offer-id": "OFF-4012-202", "data-variant-id": "VAR-202"}, text="Mustard Packet, 8 oz", children=[
                 ControlledMockElement("span", {"data-automation-id": "product-title"}, text="Mustard Packet, 8 oz"),
                 ControlledMockElement("a", {"href": "/ip/mustard/202"}, text="Mustard"),
                 ControlledMockElement("span", {"data-automation-id": "product-price"}, text="98¢"),
@@ -2782,6 +2785,202 @@ class TestWalmartScraperRules(unittest.TestCase):
             r202 = by_url["https://www.walmart.com/ip/mustard/202"]
             self.assertEqual(r202["regular_price"], "$0.98", "Cents price '98¢' must convert to '$0.98', not '$98.00'")
             self.assertEqual(r202["upc"], "078742000202")
+
+        asyncio.run(_run_test())
+        if os.path.exists(test_staging): shutil.rmtree(test_staging)
+        if os.path.exists(test_out): shutil.rmtree(test_out)
+
+    def test_issue1_nested_offer_traceability_store_conflict_and_exported_row_control(self):
+        """
+        Issue 1 Extension (Commit 7893e58 Review Findings):
+        Run through full scrape_category -> atomic production export on Store #3891:
+        1. Bare nested offer with no item ID, offer ID, variant, seller or store of its own ($9.99)
+           on Store #3891 pickup page -> product RETAINED in exported JSON with blank local money ("").
+        2. Nested offer with conflicting store evidence (storeId='3891' and pickupStoreId='9999', $9.99)
+           -> rejected and product RETAINED in exported JSON with blank local money ("").
+        3. Matching positive control (traceable usItemId, offerId, variantId, 1P Walmart seller,
+           PICKUP mode, pickupAvailable=True, consistent storeId/pickupStoreId='3891', $9.99)
+           -> exported row carries regular_price='$9.99', sale_price='', valid 22-field schema.
+        """
+        import asyncio
+        import shutil
+        from config import StoreConfig, ScraperSettings
+        from validation import REQUIRED_FIELD_ORDER, validate_dataset
+        from walmart_scraper import WalmartProductionScraper
+
+        test_staging = ".staging_reg_3891_trace"
+        test_out = "output_reg_3891_trace"
+        if os.path.exists(test_staging): shutil.rmtree(test_staging)
+        if os.path.exists(test_out): shutil.rmtree(test_out)
+
+        async def _run_test():
+            store = StoreConfig("3891", "33607", "Walmart Supercenter #3891", "1505 N Dale Mabry Hwy, Tampa, FL 33607", "FL", "Tampa")
+            settings = ScraperSettings()
+            settings.delay_between_requests_sec = 0.0
+            settings.output_directory = test_out
+            scraper = WalmartProductionScraper(store, settings, resume=False, crawl_date="2026-11-19", staging_dir=test_staging)
+
+            ssr_payload = {
+                "props": {
+                    "pageProps": {
+                        "locationContext": {"intent": "PICKUP", "pickupStore": {"storeId": "3891"}},
+                        "initialData": {
+                            "searchResult": {
+                                "storeId": "3891",
+                                "fulfillmentMode": "PICKUP",
+                                "itemStacks": [{
+                                    "items": [
+                                        {
+                                            # Negative Case 1A: Completely bare nested offer ($9.99)
+                                            "usItemId": "301",
+                                            "variantId": "VAR-301",
+                                            "upc": "078742000301",
+                                            "offers": [
+                                                {"priceInfo": {"currentPrice": {"priceString": "$9.99"}}}
+                                            ],
+                                        },
+                                        {
+                                            # Negative Case 1B: Bare nested offer with pickup flag only (no itemId, offerId, variantId, seller, store)
+                                            "usItemId": "304",
+                                            "variantId": "VAR-304",
+                                            "upc": "078742000304",
+                                            "offers": [
+                                                {
+                                                    "fulfillmentMode": "PICKUP",
+                                                    "pickupAvailable": True,
+                                                    "priceInfo": {"currentPrice": {"priceString": "$9.99"}},
+                                                }
+                                            ],
+                                        },
+                                        {
+                                            # Negative Case 2: Offer with conflicting storeId '3891' and pickupStoreId '9999' ($9.99)
+                                            "usItemId": "302",
+                                            "variantId": "VAR-302",
+                                            "upc": "078742000302",
+                                            "offers": [
+                                                {
+                                                    "usItemId": "302",
+                                                    "offerId": "OFF-3891-302",
+                                                    "variantId": "VAR-302",
+                                                    "sellerName": "Walmart.com",
+                                                    "soldByWalmart": True,
+                                                    "fulfillmentMode": "PICKUP",
+                                                    "pickupAvailable": True,
+                                                    "storeId": "3891",
+                                                    "pickupStoreId": "9999",
+                                                    "priceInfo": {"currentPrice": {"priceString": "$9.99"}},
+                                                }
+                                            ],
+                                        },
+                                        {
+                                            # Positive Control: Full traceable link to item, variant, offer, 1P seller, PICKUP, consistent store 3891
+                                            "usItemId": "303",
+                                            "variantId": "VAR-303",
+                                            "upc": "078742000303",
+                                            "priceInfo": {"currentPrice": {"priceString": "$99.00"}},
+                                            "offers": [
+                                                {
+                                                    "usItemId": "303",
+                                                    "offerId": "OFF-3891-303",
+                                                    "variantId": "VAR-303",
+                                                    "sellerName": "Walmart Inc.",
+                                                    "soldByWalmart": True,
+                                                    "fulfillmentMode": "PICKUP",
+                                                    "pickupAvailable": True,
+                                                    "inStoreStock": True,
+                                                    "storeId": "3891",
+                                                    "pickupStoreId": "3891",
+                                                    "priceInfo": {"currentPrice": {"priceString": "$9.99"}},
+                                                }
+                                            ],
+                                        },
+                                    ]
+                                }],
+                            }
+                        },
+                    }
+                }
+            }
+
+            p301 = ControlledMockElement("div", {"data-item-id": "301"}, text="Oats Canister, 18 oz", children=[
+                ControlledMockElement("span", {"data-automation-id": "product-title"}, text="Oats Canister, 18 oz"),
+                ControlledMockElement("a", {"href": "/ip/oats-canister/301"}, text="Oats Canister"),
+                ControlledMockElement("span", {"data-automation-id": "product-price"}, text="$9.99"),
+            ])
+            p304 = ControlledMockElement("div", {"data-item-id": "304"}, text="Honey Jar, 12 oz", children=[
+                ControlledMockElement("span", {"data-automation-id": "product-title"}, text="Honey Jar, 12 oz"),
+                ControlledMockElement("a", {"href": "/ip/honey-jar/304"}, text="Honey Jar"),
+                ControlledMockElement("span", {"data-automation-id": "product-price"}, text="$9.99"),
+            ])
+            p302 = ControlledMockElement("div", {"data-item-id": "302"}, text="Coffee Tin, 16 oz", children=[
+                ControlledMockElement("span", {"data-automation-id": "product-title"}, text="Coffee Tin, 16 oz"),
+                ControlledMockElement("a", {"href": "/ip/coffee-tin/302"}, text="Coffee Tin"),
+                ControlledMockElement("span", {"data-automation-id": "product-price"}, text="$9.99"),
+            ])
+            p303 = ControlledMockElement("div", {"data-item-id": "303", "data-offer-id": "OFF-3891-303", "data-variant-id": "VAR-303", "data-store-id": "3891"}, text="Olive Oil Bottle, 16 fl oz", children=[
+                ControlledMockElement("span", {"data-automation-id": "product-title"}, text="Olive Oil Bottle, 16 fl oz"),
+                ControlledMockElement("a", {"href": "/ip/olive-oil/303"}, text="Olive Oil Bottle"),
+                ControlledMockElement("span", {"data-automation-id": "product-price"}, text="$9.99"),
+            ])
+            next_dis = ControlledMockElement("button", {"aria-label": "Next Page", "disabled": "true"}, text="Next")
+            pag = ControlledMockElement("nav", {"data-automation-id": "pagination"}, text="Page 1 of 1", children=[next_dis])
+            page = ControlledMockPage(
+                product_elements=[p301, p304, p302, p303],
+                next_button=next_dis,
+                pagination_element=pag,
+                next_data_json=json.dumps(ssr_payload),
+            )
+
+            ctx_ok = await scraper.initialize_store_context(ControlledMockContext(page), page)
+            self.assertTrue(ctx_ok)
+            yielded = await scraper.scrape_category(page, 0, "Pantry", "Dry Goods", "https://www.walmart.com/browse/pantry/dry-goods/1")
+            self.assertEqual(yielded, 4)
+
+            promo_ok = scraper.checkpoint_mgr.promote_staging_to_production(
+                min_threshold=1,
+                required_categories=["Pantry > Dry Goods"],
+                failed_routes=[],
+                store_fulfillment_verified=True,
+                terminal_verified_routes=scraper.terminal_verified_routes,
+                confirmed_store_number="3891",
+                run_id=scraper.run_id,
+            )
+            self.assertTrue(promo_ok, "Expected atomic promotion to succeed for Store #3891 release")
+
+            with open(scraper.checkpoint_mgr.production_target_file, "r", encoding="utf-8") as f:
+                exported_rows = json.load(f)
+
+            self.assertEqual(len(exported_rows), 4)
+            is_valid, stats = validate_dataset(exported_rows, min_expected=1, expected_zipcodes=["33607"])
+            self.assertTrue(is_valid, f"Exported rows failed dataset validation: {stats}")
+
+            by_url = {r["url"]: r for r in exported_rows}
+            for row in exported_rows:
+                self.assertEqual(list(row.keys()), REQUIRED_FIELD_ORDER)
+
+            # Negative Case 1A & 1B: Retained with blank local money (not $9.99)
+            r301 = by_url["https://www.walmart.com/ip/oats-canister/301"]
+            self.assertEqual(r301["regular_price"], "")
+            self.assertEqual(r301["sale_price"], "")
+            self.assertEqual(r301["upc"], "078742000301")
+
+            r304 = by_url["https://www.walmart.com/ip/honey-jar/304"]
+            self.assertEqual(r304["regular_price"], "")
+            self.assertEqual(r304["sale_price"], "")
+            self.assertEqual(r304["upc"], "078742000304")
+
+            # Negative Case 2: Conflicting storeId='3891' & pickupStoreId='9999' retained with blank local money
+            r302 = by_url["https://www.walmart.com/ip/coffee-tin/302"]
+            self.assertEqual(r302["regular_price"], "")
+            self.assertEqual(r302["sale_price"], "")
+            self.assertEqual(r302["upc"], "078742000302")
+
+            # Positive Control: Full traceable 1P store 3891 pickup offer exports $9.99
+            r303 = by_url["https://www.walmart.com/ip/olive-oil/303"]
+            self.assertEqual(r303["regular_price"], "$9.99")
+            self.assertEqual(r303["sale_price"], "")
+            self.assertEqual(r303["upc"], "078742000303")
+            self.assertEqual(r303["zipcode"], "33607")
 
         asyncio.run(_run_test())
         if os.path.exists(test_staging): shutil.rmtree(test_staging)

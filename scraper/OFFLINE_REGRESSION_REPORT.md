@@ -1,8 +1,8 @@
 # Offline Regression Report — Reviewer Findings on Commit `216f192`
 
-- **Target Revision Scope**: Corrective fixes for Issues 1–6 raised against commit `216f192`, preserving all prior pagination regressions (`exact_terminal_page`, `safety_cap_resume`, `run_integration`, and `unpriced_assortment_retention`).
+- **Target Revision Scope**: Corrective fixes for Issues 1–6 raised against commit `216f192` and the two nested pickup-offer binding findings reproduced on commit `7893e58`, preserving all prior pagination regressions (`exact_terminal_page`, `safety_cap_resume`, `run_integration`, and `unpriced_assortment_retention`).
 - **Automated Test Suites Executed**:
-  - **Python Suite (`python3 -m unittest scraper/test_scraper.py -v`)**: **64 / 64 passed** (`OK`, including 6 dedicated regression tests `test_issue1_...` through `test_issue6_...`)
+  - **Python Suite (`python3 -m unittest scraper/test_scraper.py -v`)**: **65 / 65 passed** (`OK`, including dedicated regression tests `test_issue1_...` through `test_issue6_...`)
   - **TypeScript Suite (`npx --yes tsx --test src/utils/*.test.ts`)**: **18 / 18 passed** (`0 failed`, including cross-artifact identity linkage verification in `src/utils/gateEvaluator.test.ts`)
 - **Acceptance Gate Status (`public/data/live_gate_status.json`)**:
   - `pagination` (**Pagination corrections**): **PASSED** (`Offline regression suite passing`)
@@ -16,16 +16,26 @@
 
 ## Summary of Fixes & Offline Regressions (Cases 1–6)
 
-### Case 1: Strict Item/Seller/Offer/Store Price Binding, Source UPC Extraction, and Cents Conversion
-- **Defect Addressed**: A pickup page for the target store could export `$99` leaked from a nested wrong-store shipping offer (`storeId != target`, `fulfillmentMode == SHIPPING`) or accept 3P marketplace offers; `"98¢"` was parsed as `"$98.00"`; source `upc`/`gtin*` from network JSON was not propagated consistently.
+### Case 1: Strict Item/Variant/Offer/Seller/Pickup/Store Price Binding, Store Conflict Rejection, Source UPC Extraction, and Cents Conversion
+- **Defect Addressed**:
+  1. A pickup page for the target store could export `$99` leaked from a nested wrong-store shipping offer (`storeId != target`, `fulfillmentMode == SHIPPING`) or accept 3P marketplace offers; `"98¢"` was parsed as `"$98.00"`; source `upc`/`gtin*` from network JSON was not propagated consistently.
+  2. **(Commit `7893e58` Follow-up)**: A bare nested offer with no item ID, offer ID, variant, seller, or store of its own was accepted at `$9.99` using the page store (`3891`), and an offer declaring conflicting store IDs (`storeId: "3891"` alongside `pickupStoreId: "9999"`) was accepted due to `or` short-circuiting.
 - **Fixes Implemented**:
-  - `scraper/walmart_scraper.py`: Added `is_walmart_first_party_seller()`, `extract_source_upc()`, `_extract_offer_price_string()`, and `select_bound_pickup_offer()`. Bound offers strictly to matching `usItemId`, first-party Walmart seller (`sellerName`/`sellerId`/`sellerType`/`isThirdParty` checks), matching `offerId` (when DOM or source specifies an `offerId`), affirmative `PICKUP` fulfillment (`fulfillmentMode`), `pickupAvailable == True`, and target store ID. Top-level leaked `priceInfo` is rejected whenever the nested `offers` array contains no valid target-store 1P pickup offer.
+  - `scraper/walmart_scraper.py`:
+    - Added `collect_distinct_store_ids()`, `extract_distinct_variant_ids()`, `extract_all_item_variant_ids()`, `has_affirmative_walmart_first_party_seller()`, `extract_source_upc()`, `_extract_offer_price_string()`, and hardened `select_bound_pickup_offer()`.
+    - Nested priced offers now **fail closed** unless they provide a complete, unambiguous traceable link to: (a) matching `usItemId`/`itemId`, (b) non-empty `offerId` (matching DOM `data-offer-id` / `selectedOfferId` when present), (c) unambiguous `variantId` (matching item `variantId`/`variants` / DOM `data-variant-id` when present), (d) affirmative first-party Walmart seller (`has_affirmative_walmart_first_party_seller`), (e) affirmative `PICKUP` fulfillment mode without conflicting non-pickup modes + affirmative `pickupAvailable`, and (f) exact, non-conflicting store ID ON the offer itself matching `target_store_id` (zero page-store inheritance).
+    - Conflicting store identifiers across offer or item fields (e.g., `storeId: "3891"` + `pickupStoreId: "9999"`) are detected and rejected via `collect_distinct_store_ids()`, retaining the product on the page with blank local money (`regular_price == ""`, `sale_price == ""`).
+    - Top-level `priceInfo` fallback is rejected whenever nested offer containers exist without a traceable target-store 1P pickup match.
   - `scraper/validation.py`: Updated `format_price()` to convert cent-denominated strings cleanly (`"98¢"` -> `"$0.98"`, `"5¢"` -> `"$0.05"`).
 - **Offline Regression Verification**:
-  - `test_issue1_offer_store_seller_binding_upc_and_cents_pricing` (**PASSED**):
+  - `test_issue1_nested_shipping_offer_99_rejected_and_offer_seller_store_upc_cents_bound` (**PASSED**):
     - Verifies item `201` (top-level `$99.00` + nested store `9999` `SHIPPING` offer) exports `regular_price == ""` and preserves source `"upc": "078742000201"`.
-    - Verifies item `202` (leaked `$99.00` shipping offer alongside valid Store `#4012` 1P `PICKUP` offer at `"98¢"`) exports `regular_price == "$0.98"` and `"upc": "078742000202"`.
+    - Verifies item `202` (leaked `$99.00` shipping offer alongside valid traceable Store `#4012` 1P `PICKUP` offer at `"98¢"`) exports `regular_price == "$0.98"` and `"upc": "078742000202"`.
     - Verifies 3P seller item `203` is excluded.
+  - `test_issue1_nested_offer_traceability_store_conflict_and_exported_row_control` (**PASSED**, Store `#3891` end-to-end through exported JSON row):
+    - Verifies bare nested offers (`301` without offer/item/variant/seller/store fields and `304` with only `PICKUP` + `pickupAvailable` and no item/offer/variant/seller/store) are retained in `walmart_3891_2026-11-19.json` with `regular_price == ""` and `sale_price == ""`.
+    - Verifies conflicting-store nested offer (`302`, `storeId: "3891"` + `pickupStoreId: "9999"`, `$9.99`) is rejected and retained in `walmart_3891_2026-11-19.json` with `regular_price == ""` and `sale_price == ""`.
+    - Verifies matching positive control (`303`, full traceable `usItemId`/`offerId`/`variantId`/1P Walmart seller/`PICKUP`/consistent `storeId: "3891"` & `pickupStoreId: "3891"`) exports `regular_price == "$9.99"`, `sale_price == ""`, valid 22-field schema.
 
 ### Case 2: Fail-Closed Store Lookup, Empty `"10 results"` Detection, Repeated-Page Stall Rejection, and Per-Route Terminal Verification
 - **Defect Addressed**: Unknown or empty store targets silently fell back to Store `#4012`; a page displaying `"10 results"` could complete with 0 extracted items; three repeated pages yielding only 1 unique item could complete instead of failing; publication did not verify terminal pages per required category and child route for the configured store.
